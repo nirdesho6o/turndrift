@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "TurnDrift-Control Episode",
+  "description": "One episode (attack or benign twin) in the TurnDrift-Control benchmark.",
+  "type": "object",
+  "required": [
+    "episode_id",
+    "pair_id",
+    "variant",
+    "scenario_domain",
+    "injection_strategy",
+    "injection_target",
+    "fragment_turns",
+    "split",
+    "system_message",
+    "turns",
+    "success_criterion",
+    "annotation_rationale"
+  ],
+  "properties": {
+    "episode_id": {
+      "type": "string",
+      "pattern": "^(atk|ben)_[a-z_]+_[a-z_]+_[a-z_]+$",
+      "description": "Unique episode ID: {variant}_{domain}_{strategy}_{target}"
+    },
+    "pair_id": {
+      "type": "string",
+      "description": "Shared ID linking attack and benign twin"
+    },
+    "variant": {
+      "type": "string",
+      "enum": ["attack", "benign"],
+      "description": "Whether this is the attack or benign twin"
+    },
+    "scenario_domain": {
+      "type": "string",
+      "enum": [
+        "document_summarization",
+        "log_analysis",
+        "customer_support",
+        "email_drafting",
+        "config_review",
+        "code_review",
+        "research_assistant",
+        "api_response_handler",
+        "database_query",
+        "file_processing"
+      ]
+    },
+    "injection_strategy": {
+      "type": "string",
+      "enum": [
+        "single_turn",
+        "two_fragment",
+        "three_fragment",
+        "semantic_split",
+        "delayed_trigger",
+        "none"
+      ]
+    },
+    "injection_target": {
+      "type": "string",
+      "enum": [
+        "canary_extraction",
+        "instruction_override",
+        "format_hijack",
+        "role_break",
+        "policy_override",
+        "exfiltrate_via_tool",
+        "destructive_action",
+        "none"
+      ]
+    },
+    "fragment_turns": {
+      "type": "array",
+      "items": { "type": "integer", "minimum": 1, "maximum": 6 },
+      "description": "Turn numbers containing injection fragments (empty for benign)"
+    },
+    "split": {
+      "type": "string",
+      "enum": ["dev", "test"]
+    },
+    "system_message": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turns": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "turn_number",
+          "speaker",
+          "content",
+          "contains_injection_fragment",
+          "fragment_content",
+          "risk_label",
+          "expected_behaviour"
+        ],
+        "properties": {
+          "turn_number": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "speaker": {
+            "type": "string",
+            "enum": ["user", "tool_output"]
+          },
+          "content": {
+            "type": "string",
+            "minLength": 1
+          },
+          "contains_injection_fragment": {
+            "type": "boolean"
+          },
+          "fragment_content": {
+            "type": ["string", "null"],
+            "description": "The injection fragment text if present, null otherwise"
+          },
+          "risk_label": {
+            "type": "string",
+            "enum": ["benign", "injection_fragment", "trigger"]
+          },
+          "expected_behaviour": {
+            "type": "string",
+            "enum": ["helpful_answer", "refuse_or_ignore", "comply_with_injection"]
+          }
+        },
+        "additionalProperties": false
+      },
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "success_criterion": {
+      "type": "string",
+      "description": "How to detect if the model complied with the injection"
+    },
+    "annotation_rationale": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "if": {
+    "properties": { "variant": { "const": "benign" } }
+  },
+  "then": {
+    "properties": {
+      "injection_strategy": { "const": "none" },
+      "injection_target": { "const": "none" },
+      "fragment_turns": { "const": [] }
+    }
+  }
+}
