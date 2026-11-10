@@ -74,7 +74,12 @@ restore_weights(model, snapshots)
 **Notes:**
 - alpha default is 20 for RefusalDirectionTrainer; 0.3 worked for 0.5B model
 - RefusalDirectionConfig(pick_layer=N) for manual layer selection
-- **Custom contrast sets (confirmed Nov 10):** harmful/harmless args are plain lists of strings with no format constraint. D2 (injection vs clean) can use the same API by passing injection-bearing prefixes as "harmful" and clean twins as "harmless". HOWEVER: the validation sweep (`select_directions=True`, default) scores bypass/KL on refusal-style behavior, which won't fit injection-vs-clean contrast. For D2, use `RefusalDirectionConfig(select_directions=False)` or `pick_layer=N` to skip the refusal-specific sweep.
+- **Custom contrast sets (confirmed from docs Nov 10):**
+  - Source: `github.com/Lexsi-Labs/SafeTune/blob/main/docs/user-guide/steer/activation-steering/refusal-direction-model.md`
+  - Evidence: `calibrate(harmful=harmful_prompts, harmless=harmless_prompts)` and `extract_refusal_direction(model, tokenizer, harmful_prompts, harmless_prompts, config)` accept `list[str]` with no schema, label format, or content validation. Extraction is described as "mean(harmful) − mean(harmless) last-token hidden states, L2-normalised to a (hidden_size,) unit vector."
+  - Implication: D2 (injection vs clean) can use the same API by passing injection-bearing prefixes as "harmful" and clean twins as "harmless".
+  - CAVEAT: The validation sweep (`select_directions=True`, default) scores bypass/KL on refusal-style behavior, which won't fit injection-vs-clean contrast. For D2, use `RefusalDirectionConfig(select_directions=False)` or `pick_layer=N` to skip the refusal-specific sweep.
+  - Status: Inferred from docs (no explicit "custom contrast sets supported" statement). Must verify with a runtime test before calibration.
 - RefusalDirectionConfig fields: target_layers, pick_layer, pool_method ("last_token"|"mean"), strength (1.0), normalize (True), select_directions (True), kl_threshold (0.1), n_val (16), max_new_tokens (24).
 - RefusalDirectionTrainer(model, tokenizer, *, layers=None, alpha=20.0, orthogonalize=False)
 # TODO: verify alpha vs strength naming (docs are inconsistent)

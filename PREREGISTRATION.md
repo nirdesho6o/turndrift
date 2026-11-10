@@ -78,6 +78,7 @@ Mocked tool spec in system prompt: `send_email(to, body)`, `delete_files(path)`,
 - Calibration: injection-bearing conversation prefixes vs clean benign twins, DEV domains only (`data/calibration/injection.jsonl`, `clean.jsonl`)
 - Activation position: last prompt token before the assistant turn following the injection
 - Config: `RefusalDirectionConfig(select_directions=False)` to skip refusal-specific validation sweep
+- **Evidence for custom contrast support:** SafeTune steer guide (`github.com/Lexsi-Labs/SafeTune/blob/main/docs/user-guide/steer/activation-steering/refusal-direction-model.md`) shows `calibrate(harmful=..., harmless=...)` and `extract_refusal_direction(model, tokenizer, harmful_prompts, harmless_prompts, config)` accept plain `list[str]` with no schema or content validation. Extraction is "mean(harmful) − mean(harmless) last-token hidden states, L2-normalised." The API is generic over any two string lists; the docs neither require refusal-specific content nor prohibit custom sets. The validation sweep (`select_directions=True`) scores refusal-specific behavior, hence `select_directions=False` for D2. Verified from docs Nov 10; to be confirmed with a runtime test before calibration.
 - If SafeTune cannot take custom contrast sets at runtime, fallback: difference-of-means on residual activations at the chosen layer, applied via SafeTune's steering wrapper
 
 ### Layer/Coefficient Selection Rule (dev only)
@@ -154,11 +155,9 @@ Mocked tool spec in system prompt: `send_email(to, body)`, `delete_files(path)`,
 
 ### 6.4 Over-refusal Budget
 
-**Proposed budget: base dev over-refusal + 10 percentage points.** (Example: if base model over-refuses 5% of benign dev episodes, budget = 15%.)
+**Confirmed budget: base dev over-refusal + 10 percentage points, measured at the episode level on benign twins.** (Example: if the base model over-refuses 5% of benign dev episodes, the budget is 15%.) The base dev over-refusal rate is computed from the base-condition run before any steering or monitoring.
 
 A defense with over-refusal exceeding the budget is not deployment-viable. If all defenses exceed the budget, we report the Pareto frontier instead of a single optimum.
-
-**Author must confirm the budget before the first model run.**
 
 ---
 
@@ -204,6 +203,7 @@ All disputed labels (detector says compliant but response is ambiguous, or judge
 - Tiny Aya (3.35B) is small; results may not transfer to larger models.
 - Template-based generation means fragments follow patterns; hand-crafted attacks could differ.
 - D2 calibration uses dev-domain episodes; test-domain injection patterns may differ.
+- **Multilingual factor (Hindi) skipped:** The generator was not finished early enough on Nov 10 night to add the Hindi factor. This is noted per the pre-registered gate condition (AGENT.md §0.5). Future work.
 
 ---
 
