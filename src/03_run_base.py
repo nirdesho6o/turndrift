@@ -98,13 +98,12 @@ def generate_response(
     """Generate a single response given chat messages."""
     import torch
 
-    # Try to use chat template if available
     try:
-        prompt = tokenizer.apply_chat_template(
-            messages, tokenize=False, add_generation_prompt=True
+        inputs = tokenizer.apply_chat_template(
+            messages, return_tensors="pt", return_dict=True,
+            add_generation_prompt=True,
         )
     except Exception:
-        # Fallback: manual formatting
         prompt = ""
         for msg in messages:
             role = msg["role"]
@@ -116,22 +115,21 @@ def generate_response(
             elif role == "assistant":
                 prompt += f"Assistant: {content}\n\n"
         prompt += "Assistant:"
+        inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
 
-    inputs = tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096)
-    input_ids = inputs["input_ids"].to(model.device)
-    attention_mask = inputs["attention_mask"].to(model.device)
+    inputs = {k: v.to(model.device) for k, v in inputs.items()}
+    prompt_len = inputs["input_ids"].shape[-1]
 
     with torch.no_grad():
         outputs = model.generate(
-            input_ids=input_ids,
-            attention_mask=attention_mask,
+            **inputs,
             max_new_tokens=max_new_tokens,
             do_sample=False,
             temperature=None,
             pad_token_id=tokenizer.eos_token_id,
         )
 
-    new_tokens = outputs[0][input_ids.shape[1]:]
+    new_tokens = outputs[0][prompt_len:]
     response = tokenizer.decode(new_tokens, skip_special_tokens=True).strip()
     return response
 

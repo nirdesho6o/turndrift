@@ -14,13 +14,19 @@ replication_model:
 
 monitor:
   provider: "adaption"
-  model_id: null  # set after confirming Adaption API model ID
+  model_id: "qwen3.5-397b"
   temperature: 0
   max_tokens: 256
 
 judge:
   provider: "adaption"
-  model_id: null
+  model_id: "qwen3.5-397b"
+  temperature: 0
+  max_tokens: 512
+
+inter_judge:
+  provider: "adaption"
+  model_id: "glm-5.2"
   temperature: 0
   max_tokens: 512
 

@@ -1,11 +1,13 @@
 curatorkit[all]
 safetune
 auditkit
+adaption==0.19.0
 transformers>=4.40
 torch>=2.1
 accelerate
 datasets
 gradio>=4.0
+gradio_client>=1.0
 groq
 jsonschema
 pyyaml
