@@ -1,0 +1,11 @@
+.env
+results/
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.ipynb_checkpoints/
+*.pt
+*.bin
+*.safetensors
+wandb/

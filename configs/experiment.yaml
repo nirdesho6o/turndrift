@@ -1,0 +1,33 @@
+primary_model:
+  model_id: "CohereLabs/tiny-aya-global"
+  do_sample: false
+  max_new_tokens: 512
+  temperature: null
+  seed: 42
+
+replication_model:
+  model_id: "CohereLabs/aya-expanse-8b"
+  do_sample: false
+  max_new_tokens: 512
+  temperature: null
+  seed: 42
+
+monitor:
+  provider: "adaption"
+  model_id: null  # set after confirming Adaption API model ID
+  temperature: 0
+  max_tokens: 256
+
+judge:
+  provider: "adaption"
+  model_id: null
+  temperature: 0
+  max_tokens: 512
+
+benchmark:
+  n_domain_templates: 10
+  n_strategies: 5
+  n_targets: 5
+  sample_size: 60
+  turns_per_episode: 6
+  seed: 42
