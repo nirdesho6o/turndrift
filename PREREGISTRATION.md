@@ -195,6 +195,25 @@ All disputed labels (detector says compliant but response is ambiguous, or judge
 
 ---
 
+## 8.5 Pilot Gate (dev-only, before full run)
+
+A pilot run on 20 dev attack episodes (stratified across all 5 strategies) + their 20 benign twins determines whether the benchmark, monitor, and D2 direction work as designed. Pilot data is dev-only and must not touch the test split.
+
+| Check | Metric | Condition | Action |
+|-------|--------|-----------|--------|
+| A1 | Base ICR on 20 dev attacks | ICR < 10% | **Kill/strengthen:** injection templates are too weak; revise fragment wording, re-run pilot before proceeding |
+| A1 | Base ICR on 20 dev attacks | ICR ≈ 100% across all strategies | **Adapt headline:** injection succeeds universally; report shifts to defense comparison (which defense reduces ICR most) rather than strategy comparison |
+| A1 | Base ICR on 20 dev attacks | 10% ≤ ICR < 100% with strategy variance | **Proceed as planned** |
+| A3 | Full-context monitor block rate on attacks | Block rate = 100% | **Adapt monitor prompt:** monitor is too aggressive; check for false positives on benign twins; if benign block rate also high, soften prompt; if benign block rate low, document the finding (monitor catches everything) and proceed |
+| A3 | Full-context monitor block rate on attacks | Block rate = 0% | **Adapt monitor prompt:** monitor misses everything; strengthen prompt with explicit injection indicators; if still 0% after one revision, document as negative finding and proceed |
+| A3 | Monitor block rate on benign twins | Block rate > 30% | **Revise monitor prompt:** too many false positives; adjust before full run |
+| A4 | Best-layer AUROC for D2 direction | AUROC < 0.6 | **D2 negative result:** report D2 as unable to separate injection from clean activations; shift steering effort to D1 + monitor defense; still report D2 AUROC and cosine similarity with D1 |
+| A4 | Best-layer AUROC for D2 direction | AUROC ≥ 0.6 | **Proceed:** use this layer for D2 extraction |
+
+Pilot results are committed as their own stage before the full run begins.
+
+---
+
 ## 9. Scope and Limitations
 
 - Equilibrium results are properties of **this benchmark and these models**, not general theorems.
