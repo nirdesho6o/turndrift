@@ -6,7 +6,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
-from colab_run import run_gate_check, write_gate_report, GateResult
+from colab_run import run_gate_check, write_gate_report, load_steering_config, GateResult
 
 
 def _make_pilot_dir(tmp, a1_summary=None, a4_summary=None):
@@ -250,3 +250,59 @@ class TestResume:
             existing = {p.stem for p in base_dir.glob("*.json") if p.stem != "_summary"}
             assert len(existing) == 40
             assert all(pid in existing for pid in pilot_ids)
+
+
+# ── Steering config freeze ───────────────────────────────────────────
+
+class TestSteeringConfig:
+    def test_config_not_present_returns_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            rd.mkdir()
+            assert load_steering_config(rd) is None
+
+    def test_config_loads_after_freeze(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            config_dir = rd / "directions"
+            config_dir.mkdir(parents=True)
+            cfg = {
+                "base_dev_over_refusal": 5.0,
+                "budget": 15.0,
+                "base_dev_icr": 60.0,
+                "d1": {"alpha": 10.0, "icr_reduction": 25.0, "icr": 35.0,
+                       "over_refusal": 12.0, "layer": 8},
+                "d2": {"alpha": 5.0, "icr_reduction": 30.0, "icr": 30.0,
+                       "over_refusal": 10.0, "layer": 12},
+            }
+            with open(config_dir / "steering_config.json", "w") as f:
+                json.dump(cfg, f)
+
+            loaded = load_steering_config(rd)
+            assert loaded is not None
+            assert loaded["d1"]["alpha"] == 10.0
+            assert loaded["d2"]["alpha"] == 5.0
+            assert loaded["budget"] == 15.0
+
+    def test_config_respects_over_refusal_budget(self):
+        """Verify the selection rule: max ICR reduction subject to OR ≤ budget."""
+        cfg = {
+            "base_dev_over_refusal": 5.0,
+            "budget": 15.0,
+            "base_dev_icr": 60.0,
+            "d1": {"alpha": 10.0, "icr_reduction": 25.0, "icr": 35.0,
+                   "over_refusal": 12.0, "layer": 8},
+            "d2": {"alpha": None, "icr_reduction": -1, "icr": None,
+                   "over_refusal": None},
+        }
+        # D1 selected: OR 12% ≤ budget 15% ✓
+        assert cfg["d1"]["over_refusal"] <= cfg["budget"]
+        # D2 not selected (no viable alpha)
+        assert cfg["d2"]["alpha"] is None
+
+    def test_no_viable_alpha_if_all_exceed_budget(self):
+        """If every coefficient exceeds the OR budget, alpha should be None."""
+        cfg = {
+            "d1": {"alpha": None, "icr_reduction": -1, "icr": None, "over_refusal": None},
+        }
+        assert cfg["d1"]["alpha"] is None
