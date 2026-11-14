@@ -9,10 +9,11 @@ Two cells. GPU runtime required (T4 minimum).
 from google.colab import drive
 drive.mount('/content/drive')
 
-# Set HF token from Colab secrets
+# Set tokens from Colab secrets
 from google.colab import userdata
 import os
 os.environ["HF_TOKEN"] = userdata.get("HF_TOKEN")
+os.environ["ADAPTION_API_KEY"] = userdata.get("ADAPTION_API_KEY")
 
 # Clone or pull repo
 import subprocess
@@ -22,14 +23,16 @@ if not os.path.exists(repo_dir):
 else:
     subprocess.run(["git", "-C", repo_dir, "pull"], check=True)
 
-# Install dependencies
+# Install dependencies (includes adaption SDK for over-refusal judging)
 subprocess.run(["pip", "install", "-q", "-r", f"{repo_dir}/requirements.txt"], check=True)
 ```
 
 ## Cell 2: Run
 
 ```python
-!python /content/lexsi/scripts/colab_run.py --results-dir /content/drive/MyDrive/turndrift_results
+!python /content/lexsi/scripts/colab_run.py \
+    --results-dir /content/drive/MyDrive/turndrift_results \
+    --batch-size 16
 ```
 
 To resume after a disconnect, just re-run both cells — all completed stages are skipped.
@@ -37,3 +40,5 @@ To resume after a disconnect, just re-run both cells — all completed stages ar
 To run specific stages: `--stages pilot_a1,gate_check`
 
 To override a kill rule: `--override-gate`
+
+Batch size: default 16 (T4). Auto-reduces on OOM. Batched-vs-unbatched equivalence is verified on 3 episodes at the start of `full_base` and logged to `results/batch_equivalence.json`. All conditions (base, D1, D2, random) use the same batch config; mixing configs fails loudly.

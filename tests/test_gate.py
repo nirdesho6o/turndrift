@@ -1,11 +1,13 @@
 """Tests for gate check logic and resume behavior."""
 
 import json
+import pytest
 import sys
 import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from colab_run import run_gate_check, write_gate_report, load_steering_config, GateResult
 
 
@@ -303,6 +305,83 @@ class TestSteeringConfig:
     def test_no_viable_alpha_if_all_exceed_budget(self):
         """If every coefficient exceeds the OR budget, alpha should be None."""
         cfg = {
-            "d1": {"alpha": None, "icr_reduction": -1, "icr": None, "over_refusal": None},
+            "d1": {"alpha": None, "icr_reduction": -1, "icr": None, "over_refusal": None, "viable": False},
         }
         assert cfg["d1"]["alpha"] is None
+        assert cfg["d1"]["viable"] is False
+
+    def test_nonviable_config_has_viable_false(self):
+        """steering_config.json records viable: false when no alpha meets budget."""
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            config_dir = rd / "directions"
+            config_dir.mkdir(parents=True)
+            cfg = {
+                "base_dev_over_refusal": 5.0,
+                "budget": 15.0,
+                "base_dev_icr": 60.0,
+                "d1": {"alpha": None, "icr_reduction": -1, "icr": None,
+                       "over_refusal": None, "viable": False},
+                "d2": {"alpha": None, "icr_reduction": -1, "icr": None,
+                       "over_refusal": None, "viable": False},
+            }
+            with open(config_dir / "steering_config.json", "w") as f:
+                json.dump(cfg, f)
+
+            loaded = load_steering_config(rd)
+            assert loaded is not None
+            assert loaded["d1"]["viable"] is False
+            assert loaded["d2"]["viable"] is False
+            assert loaded["d1"]["alpha"] is None
+            assert loaded["d2"]["alpha"] is None
+
+
+# ── Batch config consistency ────────────────────────────────────────
+
+class TestBatchConfigConsistency:
+    def test_matching_config_passes(self):
+        from run_base_module import check_batch_config_consistency, _make_batch_config, BATCH_CONFIG_KEY
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            tdir = rd / "transcripts" / "base"
+            tdir.mkdir(parents=True)
+            cfg = _make_batch_config(16, True)
+            transcript = {"episode_id": "ep001", "variant": "attack", BATCH_CONFIG_KEY: cfg}
+            with open(tdir / "ep001.json", "w") as f:
+                json.dump(transcript, f)
+            # Should not raise
+            check_batch_config_consistency(rd, cfg)
+
+    def test_mismatching_config_raises(self):
+        from run_base_module import check_batch_config_consistency, _make_batch_config, BATCH_CONFIG_KEY
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            tdir = rd / "transcripts" / "base"
+            tdir.mkdir(parents=True)
+            old_cfg = _make_batch_config(1, False)
+            transcript = {"episode_id": "ep001", "variant": "attack", BATCH_CONFIG_KEY: old_cfg}
+            with open(tdir / "ep001.json", "w") as f:
+                json.dump(transcript, f)
+            new_cfg = _make_batch_config(16, True)
+            with pytest.raises(RuntimeError, match="Batch config mismatch"):
+                check_batch_config_consistency(rd, new_cfg)
+
+    def test_no_existing_transcripts_passes(self):
+        from run_base_module import check_batch_config_consistency, _make_batch_config
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            rd.mkdir(parents=True)
+            cfg = _make_batch_config(16, True)
+            check_batch_config_consistency(rd, cfg)
+
+    def test_transcript_without_batch_config_passes(self):
+        from run_base_module import check_batch_config_consistency, _make_batch_config
+        with tempfile.TemporaryDirectory() as tmp:
+            rd = Path(tmp) / "results"
+            tdir = rd / "transcripts" / "base"
+            tdir.mkdir(parents=True)
+            transcript = {"episode_id": "ep001", "variant": "attack"}
+            with open(tdir / "ep001.json", "w") as f:
+                json.dump(transcript, f)
+            cfg = _make_batch_config(16, True)
+            check_batch_config_consistency(rd, cfg)

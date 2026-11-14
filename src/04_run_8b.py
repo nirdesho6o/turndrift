@@ -37,6 +37,8 @@ def main():
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--split", default=None, choices=["dev", "test"])
     parser.add_argument("--max-retries", type=int, default=5)
+    parser.add_argument("--batch-size", type=int, default=16,
+                        help="Episodes per ZeroGPU batch call (default 16, H200 70GB)")
     args = parser.parse_args()
 
     from gradio_client import Client
@@ -69,30 +71,66 @@ def main():
         print("No episodes to run.")
         return
 
-    print(f"Running {len(episodes)} episodes via {args.space}")
+    # Estimate ZeroGPU budget (H200 70GB)
+    n_batches = (len(episodes) + args.batch_size - 1) // args.batch_size
+    secs_per_single = 180
+    # Duration per batch: 6 turns × ~8s/turn × batch_size/16 scaling, × 1.3 margin
+    secs_per_batch = int(6 * 8 * max(args.batch_size, 1) / 16 * 1.3)
+    secs_per_batch = max(secs_per_batch, 60)
+    if args.batch_size == 1:
+        est_gpu_secs = len(episodes) * secs_per_single
+    else:
+        est_gpu_secs = n_batches * secs_per_batch
+    est_gpu_mins = est_gpu_secs / 60
+    free_mins = 25
+    paid_rate = 0.10  # $1 per 10 min on H200
+    paid_cost = max(0, est_gpu_mins - free_mins) * paid_rate
+
+    print(f"\nZeroGPU budget estimate (H200 70GB):")
+    print(f"  Episodes: {len(episodes)}, batch_size={args.batch_size}, batches={n_batches}")
+    print(f"  Estimated GPU time: {est_gpu_mins:.1f} min")
+    print(f"  Free tier: 25 min/day")
+    if est_gpu_mins <= free_mins:
+        print(f"  Cost: $0 (within free tier)")
+    else:
+        print(f"  Estimated cost: ${paid_cost:.2f} "
+              f"({est_gpu_mins - free_mins:.1f} min overage × $0.10/min)")
+    print(f"  vs unbatched: {len(episodes) * secs_per_single / 60:.1f} min")
+    print()
+
+    print(f"Running {len(episodes)} episodes via {args.space} (batch_size={args.batch_size})")
 
     compliant = 0
     total_attacks = 0
     results_summary = []
     quota_exhausted = False
 
-    for i, episode in enumerate(episodes):
-        eid = episode["episode_id"]
-        print(f"[{i+1}/{len(episodes)}] {eid} ", end="", flush=True)
+    for batch_start in range(0, len(episodes), args.batch_size):
+        batch = episodes[batch_start:batch_start + args.batch_size]
+        batch_num = batch_start // args.batch_size + 1
+        batch_eids = [e["episode_id"] for e in batch]
+        print(f"\nBatch {batch_num}/{n_batches} ({len(batch)} episodes): ", end="", flush=True)
 
-        transcript = None
+        transcripts = None
         for attempt in range(args.max_retries):
             try:
-                result = client.predict(
-                    episode_json=json.dumps(episode),
-                    api_name="/run_episode",
-                )
-                transcript = json.loads(result)
+                if args.batch_size > 1:
+                    result = client.predict(
+                        episodes_json=json.dumps(batch),
+                        api_name="/run_episodes_batch",
+                    )
+                    transcripts = json.loads(result)
+                else:
+                    result = client.predict(
+                        episode_json=json.dumps(batch[0]),
+                        api_name="/run_episode",
+                    )
+                    transcripts = [json.loads(result)]
                 break
             except Exception as e:
                 err_str = str(e).lower()
-                if "quota" in err_str or "gpu" in err_str and "exceeded" in err_str:
-                    print(f"\nGPU quota exhausted after {i} episodes. Resume later.")
+                if "quota" in err_str or ("gpu" in err_str and "exceeded" in err_str):
+                    print(f"\nGPU quota exhausted after batch {batch_num}. Resume later.")
                     quota_exhausted = True
                     break
                 wait = min(2 ** (attempt + 1), 60)
@@ -102,32 +140,36 @@ def main():
         if quota_exhausted:
             break
 
-        if transcript is None:
+        if transcripts is None:
             print(f"FAILED after {args.max_retries} retries")
             continue
 
-        out_path = out_dir / f"{eid}.json"
-        with open(out_path, "w") as f:
-            json.dump(transcript, f, indent=2)
+        print(f"done")
+        for transcript in transcripts:
+            eid = transcript["episode_id"]
+            out_path = out_dir / f"{eid}.json"
+            with open(out_path, "w") as f:
+                json.dump(transcript, f, indent=2)
 
-        if episode["variant"] == "attack":
-            total_attacks += 1
-            if transcript.get("compliance", {}).get("detected"):
-                compliant += 1
-                print(f"COMPLIANT (turn {transcript['compliance']['after_turn']})")
+            ep = next(e for e in batch if e["episode_id"] == eid)
+            if ep["variant"] == "attack":
+                total_attacks += 1
+                if transcript.get("compliance", {}).get("detected"):
+                    compliant += 1
+                    print(f"  {eid}: COMPLIANT (turn {transcript['compliance']['after_turn']})")
+                else:
+                    print(f"  {eid}: REFUSED")
             else:
-                print("REFUSED")
-        else:
-            print("BENIGN")
+                print(f"  {eid}: BENIGN")
 
-        results_summary.append({
-            "episode_id": eid,
-            "variant": episode["variant"],
-            "strategy": episode.get("injection_strategy", "none"),
-            "target": episode.get("injection_target", "none"),
-            "compliant": (transcript["compliance"]["detected"]
-                          if transcript.get("compliance") else None),
-        })
+            results_summary.append({
+                "episode_id": eid,
+                "variant": ep["variant"],
+                "strategy": ep.get("injection_strategy", "none"),
+                "target": ep.get("injection_target", "none"),
+                "compliant": (transcript["compliance"]["detected"]
+                              if transcript.get("compliance") else None),
+            })
 
     # Summary
     print(f"\n{'='*60}")
