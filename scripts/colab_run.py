@@ -954,6 +954,82 @@ def load_steering_config(results_dir: Path) -> dict | None:
 
 # ── Stage: steering runs ─────────────────────────────────────────────
 
+def _steering_sanity_check(results_dir: Path, condition: str, model, tokenizer,
+                           trainer, device: str):
+    """Verify steering hook works: steered output differs, hook removal restores original.
+
+    Tests on 2 dev prompts. Logs to results/steering_sanity.json.
+    Raises RuntimeError on failure.
+    """
+    from run_base_module import generate_response
+
+    sanity_path = results_dir / "steering_sanity.json"
+    if sanity_path.exists():
+        with open(sanity_path) as f:
+            existing = json.load(f)
+        if condition in existing:
+            print(f"  Steering sanity check: cached ({condition})")
+            return
+
+    episodes = load_episodes()
+    dev_eps = [e for e in episodes if e["split"] == "dev"][:2]
+    if not dev_eps:
+        print("  WARNING: no dev episodes for sanity check")
+        return
+
+    results = []
+    for ep in dev_eps:
+        msgs = [{"role": "system", "content": ep["system_message"]},
+                {"role": "user", "content": ep["turns"][0]["content"]}]
+
+        unsteered = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
+
+        with trainer:
+            steered = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
+
+        restored = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
+
+        differs = steered != unsteered
+        restores = restored == unsteered
+
+        results.append({
+            "episode_id": ep["episode_id"],
+            "steered_differs_from_unsteered": differs,
+            "restored_matches_unsteered": restores,
+            "unsteered_prefix": unsteered[:100],
+            "steered_prefix": steered[:100],
+            "restored_prefix": restored[:100],
+        })
+
+    all_differ = all(r["steered_differs_from_unsteered"] for r in results)
+    all_restore = all(r["restored_matches_unsteered"] for r in results)
+
+    report = {"condition": condition, "passed": all_differ and all_restore, "checks": results}
+
+    existing_report = {}
+    if sanity_path.exists():
+        with open(sanity_path) as f:
+            existing_report = json.load(f)
+    existing_report[condition] = report
+    with open(sanity_path, "w") as f:
+        json.dump(existing_report, f, indent=2)
+
+    if not all_differ:
+        failed = [r["episode_id"] for r in results if not r["steered_differs_from_unsteered"]]
+        raise RuntimeError(
+            f"Steering sanity FAILED for {condition}: steered output identical to unsteered "
+            f"on {failed}. The hook may not be activating — check _direction/_layer assignment."
+        )
+    if not all_restore:
+        failed = [r["episode_id"] for r in results if not r["restored_matches_unsteered"]]
+        raise RuntimeError(
+            f"Steering sanity FAILED for {condition}: output after hook removal differs from "
+            f"original on {failed}. The hook may be leaking state into model weights."
+        )
+
+    print(f"  Steering sanity check PASSED: steered differs, hook removal restores original")
+
+
 def _run_steered(results_dir: Path, condition: str, model, tokenizer,
                  direction_path: Path, alpha: float, device: str,
                  random_control: bool = False, batch_size: int = 16):
@@ -1014,6 +1090,8 @@ def _run_steered(results_dir: Path, condition: str, model, tokenizer,
     trainer = steer.RefusalDirectionTrainer(model, tokenizer, alpha=alpha)
     trainer._direction = direction
     trainer._layer = layer
+
+    _steering_sanity_check(results_dir, condition, model, tokenizer, trainer, device)
 
     with trainer:
         for chunk_start in range(0, len(to_run), max(batch_size, 1)):
