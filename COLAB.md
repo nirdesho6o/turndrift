@@ -17,12 +17,14 @@ os.environ["ADAPTION_API_KEY"] = userdata.get("ADAPTION_API_KEY")
 GH_TOKEN = userdata.get("GH_TOKEN")
 
 # Clone or pull private repo (needs GH_TOKEN with repo scope)
-import subprocess
-repo_dir = "/content/lexsi"
+import subprocess, shutil
+repo_dir = "/content/turndrift"
 clone_url = f"https://{GH_TOKEN}@github.com/nirdesho6o/turndrift.git"
 if not os.path.exists(repo_dir):
     subprocess.run(["git", "clone", clone_url, repo_dir], check=True)
 else:
+    # Ensure remote URL has the token (survives re-runs after a secrets update)
+    subprocess.run(["git", "-C", repo_dir, "remote", "set-url", "origin", clone_url], check=True)
     subprocess.run(["git", "-C", repo_dir, "pull"], check=True)
 
 # Install dependencies (includes adaption SDK for over-refusal judging)
@@ -32,7 +34,7 @@ subprocess.run(["pip", "install", "-q", "-r", f"{repo_dir}/requirements.txt"], c
 ## Cell 2: Run
 
 ```python
-!python /content/lexsi/scripts/colab_run.py \
+!python /content/turndrift/scripts/colab_run.py \
     --results-dir /content/drive/MyDrive/turndrift_results \
     --batch-size 16
 ```
