@@ -621,6 +621,13 @@ def stage_full_base(results_dir: Path, model, tokenizer, device: str, batch_size
 
 # ── Stage: extract_d1 ───────────────────────────────────────────────
 
+def _free_vram():
+    """Release cached VRAM before memory-heavy operations."""
+    import gc, torch
+    gc.collect()
+    torch.cuda.empty_cache()
+
+
 def stage_extract_d1(results_dir: Path, model, tokenizer):
     """Extract D1 refusal direction via SafeTune."""
     d1_path = results_dir / "directions" / "d1.pt"
@@ -629,6 +636,8 @@ def stage_extract_d1(results_dir: Path, model, tokenizer):
         return
 
     from safetune.steer import extract_refusal_direction, RefusalDirectionConfig
+
+    _free_vram()
 
     harmful = load_calibration("harmful")
     harmless = load_calibration("harmless")
@@ -649,8 +658,12 @@ def stage_extract_d1(results_dir: Path, model, tokenizer):
 
 # ── Stage: extract_d2 ───────────────────────────────────────────────
 
-def _calibration_to_texts(entries, tokenizer):
-    """Convert calibration entries to text strings for SafeTune."""
+def _calibration_to_texts(entries, tokenizer, max_tokens: int = 512):
+    """Convert calibration entries to text strings for SafeTune.
+
+    Truncates from the LEFT to max_tokens so the last-token activation
+    (used by mean-difference extraction) always sees the final context.
+    """
     texts = []
     for entry in entries:
         msgs = [{"role": "system", "content": entry["system_message"]}]
@@ -665,6 +678,9 @@ def _calibration_to_texts(entries, tokenizer):
             for t in entry["turns"]:
                 text += f"{t['speaker'].upper()}: {t['content']}\n\n"
             text += "Assistant:"
+        ids = tokenizer.encode(text)
+        if len(ids) > max_tokens:
+            text = tokenizer.decode(ids[-max_tokens:], skip_special_tokens=False)
         texts.append(text)
     return texts
 
@@ -681,6 +697,8 @@ def stage_extract_d2(results_dir: Path, model, tokenizer, gate: GateResult):
         return
 
     from safetune.steer import extract_refusal_direction, RefusalDirectionConfig
+
+    _free_vram()
 
     injection = load_calibration("injection")
     clean = load_calibration("clean")
