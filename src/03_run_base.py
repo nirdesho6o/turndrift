@@ -179,10 +179,17 @@ def generate_response_batched(
     batch_ids = torch.stack(padded_ids).to(model.device)
     batch_masks = torch.stack(padded_masks).to(model.device)
 
+    # Compute position_ids from attention_mask so left-pad tokens get
+    # position 0 and real tokens get contiguous positions starting at 0.
+    position_ids = batch_masks.long().cumsum(-1) - 1
+    position_ids.masked_fill_(batch_masks == 0, 0)
+    position_ids = position_ids.to(model.device)
+
     with torch.no_grad():
         outputs = model.generate(
             input_ids=batch_ids,
             attention_mask=batch_masks,
+            position_ids=position_ids,
             max_new_tokens=max_new_tokens,
             do_sample=False,
             temperature=None,
