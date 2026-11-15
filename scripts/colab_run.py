@@ -1531,12 +1531,17 @@ def main():
             sanity_p.unlink()
             print(f"  --retune: deleted {sanity_p}")
         # Also delete stale steered transcripts so they get regenerated
-        for cond in ["steer_d1", "steer_d2", "steer_random"]:
+        import shutil
+        for cond in ["base", "steer_d1", "steer_d2", "steer_random"]:
             cond_dir = results_dir / "transcripts" / cond
             if cond_dir.exists():
-                import shutil
                 shutil.rmtree(cond_dir)
                 print(f"  --retune: deleted {cond_dir}")
+        for f_name in ["batch_equivalence.json", "run_summary.json"]:
+            p = results_dir / f_name
+            if p.exists():
+                p.unlink()
+                print(f"  --retune: deleted {p}")
 
     gate = None
 
