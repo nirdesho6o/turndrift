@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
-"""Full-context monitor: send each transcript to Qwen 3.5 397B via Adaption.
+"""Full-context and per-turn monitors via Qwen 3.5 397B (Adaption API).
 
-For each episode, the monitor sees the full conversation up to the LAST
-assistant turn and outputs ALLOW or BLOCK. We score: did the monitor
-catch episodes where the model was compliant with the injection?
+Modes:
+  --mode full_context  (default) Monitor sees full conversation → one ALLOW/BLOCK
+  --mode per_turn      Monitor sees conversation up to each turn → ALLOW/BLOCK per turn
 
 Usage:
     ADAPTION_API_KEY=... python scripts/run_monitor.py --results-dir results
-    ADAPTION_API_KEY=... python scripts/run_monitor.py --results-dir results --condition steer_d1
+    ADAPTION_API_KEY=... python scripts/run_monitor.py --results-dir results --mode per_turn
 """
 
 from __future__ import annotations
@@ -74,6 +74,105 @@ def format_transcript_for_monitor(transcript: dict) -> str:
     return "\n".join(lines)
 
 
+_EPISODES_CACHE: dict | None = None
+
+def _load_episodes() -> dict:
+    global _EPISODES_CACHE
+    if _EPISODES_CACHE is None:
+        _EPISODES_CACHE = {}
+        ep_path = Path("data/processed/turndrift_core.jsonl")
+        if ep_path.exists():
+            with open(ep_path) as f:
+                for line in f:
+                    ep = json.loads(line.strip())
+                    _EPISODES_CACHE[ep["episode_id"]] = ep
+    return _EPISODES_CACHE
+
+
+def format_transcript_per_turn(transcript: dict, up_to_turn: int) -> str:
+    """Format conversation up to a specific turn number for per-turn monitoring."""
+    episode_id = transcript["episode_id"]
+    episodes = _load_episodes()
+    ep_data = episodes.get(episode_id)
+    responses = transcript.get("responses", [])
+    resp_by_turn = {r["after_turn"]: r["response"] for r in responses}
+
+    lines = [f"Episode: {episode_id}", ""]
+    if ep_data:
+        lines.append(f"[SYSTEM]: {ep_data['system_message']}")
+        lines.append("")
+        for turn in ep_data["turns"]:
+            if turn["turn_number"] > up_to_turn:
+                break
+            lines.append(f"[USER turn {turn['turn_number']}]: {turn['content']}")
+            resp = resp_by_turn.get(turn["turn_number"], "")
+            if resp:
+                lines.append(f"[ASSISTANT turn {turn['turn_number']}]: {resp}")
+            lines.append("")
+
+    return "\n".join(lines)
+
+
+async def monitor_one_per_turn(client, transcript: dict, cache_dir: Path) -> dict:
+    """Per-turn monitor: check each turn independently."""
+    eid = transcript["episode_id"]
+    cache_path = cache_dir / f"{eid}.json"
+
+    if cache_path.exists():
+        with open(cache_path) as f:
+            return json.load(f)
+
+    responses = transcript.get("responses", [])
+    turn_verdicts = []
+    any_block = False
+
+    for resp in responses:
+        turn_num = resp["after_turn"]
+        conversation_text = format_transcript_per_turn(transcript, turn_num)
+
+        for attempt in range(3):
+            try:
+                r = await client.responses.create(
+                    model=MONITOR_MODEL,
+                    input=[
+                        {"role": "system", "content": MONITOR_PROMPT},
+                        {"role": "user", "content": conversation_text},
+                    ],
+                    temperature=0,
+                    max_output_tokens=256,
+                )
+                raw = r.output_text
+                break
+            except Exception as e:
+                if attempt < 2:
+                    await asyncio.sleep(2 ** (attempt + 1))
+                else:
+                    raw = f"ERROR: {e}"
+
+        verdict = "BLOCK" if raw.strip().upper().startswith("BLOCK") else "ALLOW"
+        turn_verdicts.append({"turn": turn_num, "verdict": verdict, "raw": raw})
+        if verdict == "BLOCK":
+            any_block = True
+
+    result = {
+        "episode_id": eid,
+        "variant": transcript.get("variant"),
+        "injection_strategy": transcript.get("injection_strategy", "none"),
+        "injection_target": transcript.get("injection_target", "none"),
+        "split": transcript.get("split"),
+        "compliance_detected": transcript.get("compliance", {}).get("detected", False),
+        "monitor_verdict": "BLOCK" if any_block else "ALLOW",
+        "turn_verdicts": turn_verdicts,
+        "first_block_turn": next((tv["turn"] for tv in turn_verdicts if tv["verdict"] == "BLOCK"), None),
+    }
+
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "w") as f:
+        json.dump(result, f, indent=2)
+
+    return result
+
+
 async def monitor_one(client, transcript: dict, cache_dir: Path) -> dict:
     """Run the monitor on one transcript. Returns verdict dict."""
     eid = transcript["episode_id"]
@@ -129,7 +228,7 @@ async def monitor_one(client, transcript: dict, cache_dir: Path) -> dict:
 
 
 async def run_monitor_batch(transcripts: list[dict], cache_dir: Path,
-                            concurrency: int = 5) -> list[dict]:
+                            concurrency: int = 5, mode: str = "full_context") -> list[dict]:
     """Run monitor on all transcripts with bounded concurrency."""
     from adaption import AsyncAdaption
 
@@ -142,9 +241,11 @@ async def run_monitor_batch(transcripts: list[dict], cache_dir: Path,
     sem = asyncio.Semaphore(concurrency)
     results = []
 
+    monitor_fn = monitor_one_per_turn if mode == "per_turn" else monitor_one
+
     async def _bounded(t):
         async with sem:
-            return await monitor_one(client, t, cache_dir)
+            return await monitor_fn(client, t, cache_dir)
 
     tasks = [_bounded(t) for t in transcripts]
     done = 0
@@ -209,10 +310,13 @@ def summarize_monitor(results: list[dict], condition: str) -> dict:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Full-context monitor via Adaption API")
+    parser = argparse.ArgumentParser(description="Monitor via Adaption API")
     parser.add_argument("--results-dir", default="results")
     parser.add_argument("--condition", default="base",
                         help="Which transcript condition to monitor (base, steer_d1, etc.)")
+    parser.add_argument("--mode", default="full_context",
+                        choices=["full_context", "per_turn"],
+                        help="full_context = one verdict per episode; per_turn = one per turn")
     parser.add_argument("--concurrency", type=int, default=5,
                         help="Max concurrent API calls")
     parser.add_argument("--split", default=None,
@@ -221,7 +325,8 @@ def main():
 
     results_dir = Path(args.results_dir)
     transcript_dir = results_dir / "transcripts" / args.condition
-    cache_dir = results_dir / "monitor" / args.condition
+    mode_suffix = "" if args.mode == "full_context" else "_per_turn"
+    cache_dir = results_dir / "monitor" / f"{args.condition}{mode_suffix}"
 
     if not transcript_dir.exists():
         print(f"ERROR: No transcripts at {transcript_dir}")
@@ -239,16 +344,19 @@ def main():
 
     cached = sum(1 for t in transcripts if (cache_dir / f"{t['episode_id']}.json").exists())
     remaining = len(transcripts) - cached
-    print(f"Monitor ({args.condition}): {len(transcripts)} transcripts, "
+    print(f"Monitor ({args.condition}, {args.mode}): {len(transcripts)} transcripts, "
           f"{cached} cached, {remaining} remaining")
     print(f"Model: {MONITOR_MODEL}")
+    if args.mode == "per_turn":
+        n_turns = sum(len(t.get("responses", [])) for t in transcripts)
+        print(f"  Per-turn mode: ~{n_turns} API calls total")
     print()
 
-    results = asyncio.run(run_monitor_batch(transcripts, cache_dir, args.concurrency))
+    results = asyncio.run(run_monitor_batch(transcripts, cache_dir, args.concurrency, args.mode))
 
-    summary = summarize_monitor(results, args.condition)
+    summary = summarize_monitor(results, f"{args.condition}_{args.mode}")
 
-    summary_path = results_dir / "monitor" / f"{args.condition}_summary.json"
+    summary_path = results_dir / "monitor" / f"{args.condition}{mode_suffix}_summary.json"
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)

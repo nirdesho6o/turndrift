@@ -28,6 +28,7 @@ ATTACKER_STRATEGIES = [
 DEFENDER_STRATEGIES_FULL = [
     "none",
     "full_context_monitor",
+    "per_turn_monitor",
     "D1_steering",
     "D2_steering",
     "full_context_monitor+best_steering",
@@ -134,6 +135,7 @@ def build_payoff_matrix(
     base_all = load_transcripts(results_dir, "base")
     base = [t for t in base_all if t.get("split") == split]
     base_monitor = load_monitor(results_dir, "base")
+    base_monitor_pt = load_monitor(results_dir, "base_per_turn")
 
     # Load steering transcripts
     d1_all = load_transcripts(results_dir, "steer_d1")
@@ -161,6 +163,14 @@ def build_payoff_matrix(
         for strat in ATTACKER_STRATEGIES:
             matrix["full_context_monitor"][strat] = compute_cell_payoff(
                 base, base_monitor, strat, True)
+
+    # Defense: per_turn_monitor (base + per-turn monitor)
+    if base and base_monitor_pt:
+        available.append("per_turn_monitor")
+        matrix["per_turn_monitor"] = {}
+        for strat in ATTACKER_STRATEGIES:
+            matrix["per_turn_monitor"][strat] = compute_cell_payoff(
+                base, base_monitor_pt, strat, True)
 
     # Defense: D1_steering
     if d1:
@@ -358,7 +368,7 @@ def main():
 
     or_rates = {}
     for d in available:
-        condition = "base" if d in ("none", "full_context_monitor") else d.lower().replace("_steering", "").replace("full_context_monitor+best_steering", "steer_d2")
+        condition = "base" if d in ("none", "full_context_monitor", "per_turn_monitor") else d.lower().replace("_steering", "").replace("full_context_monitor+best_steering", "steer_d2")
         if d == "D1_steering":
             condition = "steer_d1"
         elif d == "D2_steering":
@@ -404,6 +414,46 @@ def main():
     else:
         print(f"  Not feasible: {lp.get('note', 'unknown')}")
 
+    # ── Bootstrap CIs ──
+    print(f"\n{'='*60}")
+    print("BOOTSTRAP 95% CIs (per strategy, no defense)")
+    print("-" * 60)
+
+    bootstrap_cis = {}
+    if "none" in matrix:
+        base_all = load_transcripts(results_dir, "base")
+        base_split = [t for t in base_all if t.get("split") == args.split]
+        for strat in ATTACKER_STRATEGIES:
+            eps = [t for t in base_split
+                   if t.get("variant") == "attack"
+                   and t.get("injection_strategy") == strat]
+            if eps:
+                vals = [1.0 if t.get("compliance", {}).get("detected", False) else 0.0
+                        for t in eps]
+                lo, hi = bootstrap_ci([v * 100 for v in vals])
+                mean = round(np.mean(vals) * 100, 1)
+                bootstrap_cis[strat] = {"mean": mean, "ci_lo": lo, "ci_hi": hi, "n": len(eps)}
+                print(f"  {strat}: {mean:.1f}% [{lo:.1f}, {hi:.1f}] (n={len(eps)})")
+
+    # ── Fragment innocuousness comparison ──
+    print(f"\n{'='*60}")
+    print("FRAGMENT INNOCUOUSNESS")
+    print("-" * 60)
+    print("Single-turn vs multi-fragment ASR (no defense):")
+
+    if "none" in matrix:
+        single = matrix["none"].get("single_turn", {}).get("asr", 0)
+        multi_strats = ["two_fragment", "three_fragment", "semantic_split", "delayed_trigger"]
+        for ms in multi_strats:
+            ms_asr = matrix["none"].get(ms, {}).get("asr", 0)
+            delta = ms_asr - single
+            direction = "+" if delta >= 0 else ""
+            print(f"  {ms}: {ms_asr:.1f}% (Δ {direction}{delta:.1f}pp vs single_turn)")
+        avg_multi = np.mean([matrix["none"].get(ms, {}).get("asr", 0) for ms in multi_strats])
+        print(f"  Avg multi-fragment: {avg_multi:.1f}% vs single_turn: {single:.1f}%")
+        if single > 0:
+            print(f"  Fragment innocuousness ratio: {avg_multi / single:.2f}x")
+
     # ── Save full analysis ──
     analysis = {
         "split": args.split,
@@ -413,6 +463,14 @@ def main():
         "over_refusal_rates": or_rates,
         "budget": budget,
         "mixed_strategy_lp": lp,
+        "bootstrap_cis": bootstrap_cis,
+        "fragment_innocuousness": {
+            "single_turn_asr": matrix.get("none", {}).get("single_turn", {}).get("asr", 0),
+            "multi_fragment_avg": round(float(np.mean([
+                matrix.get("none", {}).get(ms, {}).get("asr", 0)
+                for ms in ["two_fragment", "three_fragment", "semantic_split", "delayed_trigger"]
+            ])), 1) if "none" in matrix else 0,
+        },
     }
 
     for d in available:
