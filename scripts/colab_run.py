@@ -641,8 +641,8 @@ def stage_extract_d1(results_dir: Path, model, tokenizer):
 
     harmful = load_calibration("harmful")
     harmless = load_calibration("harmless")
-    harmful_texts = [e["text"] for e in harmful]
-    harmless_texts = [e["text"] for e in harmless]
+    harmful_texts = [e["text"] for e in harmful][:15]
+    harmless_texts = [e["text"] for e in harmless][:15]
 
     print(f"  D1: {len(harmful_texts)} harmful vs {len(harmless_texts)} harmless")
     direction, layer, meta = extract_refusal_direction(
@@ -702,8 +702,16 @@ def stage_extract_d2(results_dir: Path, model, tokenizer, gate: GateResult):
 
     injection = load_calibration("injection")
     clean = load_calibration("clean")
-    inj_texts = _calibration_to_texts(injection, tokenizer)
-    clean_texts = _calibration_to_texts(clean, tokenizer)
+    inj_texts = _calibration_to_texts(injection, tokenizer, max_tokens=256)
+    clean_texts = _calibration_to_texts(clean, tokenizer, max_tokens=256)
+
+    # SafeTune batches internally at ~15; on T4 the lm_head OOMs on long
+    # batches. Cap each side at 15 so internal batches are ≤5.
+    max_cal = 15
+    if len(inj_texts) > max_cal:
+        inj_texts = inj_texts[:max_cal]
+    if len(clean_texts) > max_cal:
+        clean_texts = clean_texts[:max_cal]
 
     print(f"  D2: {len(inj_texts)} injection vs {len(clean_texts)} clean, layer={gate.a4_best_layer}")
     direction, layer, meta = extract_refusal_direction(
