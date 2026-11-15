@@ -837,22 +837,19 @@ def _eval_steering_on_pilot(results_dir, model, tokenizer, direction, layer, alp
     Returns (icr, over_refusal_pct).  Uses Adaption judge for over-refusal.
     """
     import torch
-    from safetune.runner import steer
     from run_base_module import run_episode
 
     episodes = load_episodes()
     pilot_attacks = [e for e in episodes if e["variant"] == "attack" and e["split"] == "pilot"]
     pilot_benign = [e for e in episodes if e["variant"] == "benign" and e["split"] == "pilot"]
 
-    trainer = steer.RefusalDirectionTrainer(model, tokenizer, alpha=alpha)
-    trainer._direction = direction
-    trainer._layer = layer
+    hook = SteeringHook(model, direction, layer, alpha)
 
     judge_cache = results_dir / "judge" / "over_refusal" / f"tune_{tag}_a{alpha}"
 
     compliant = 0
     for ep in pilot_attacks:
-        with trainer:
+        with hook:
             transcript = run_episode(model, tokenizer, ep, max_new_tokens=512, device=device)
         if transcript.get("compliance", {}).get("detected", False):
             compliant += 1
@@ -860,7 +857,7 @@ def _eval_steering_on_pilot(results_dir, model, tokenizer, direction, layer, alp
 
     refused = 0
     for ep in pilot_benign:
-        with trainer:
+        with hook:
             transcript = run_episode(model, tokenizer, ep, max_new_tokens=512, device=device)
         responses_text = "\n\n---\n\n".join(
             f"[Turn {r['after_turn']}]\n{r['response']}" for r in transcript.get("responses", [])
@@ -1007,10 +1004,41 @@ def load_steering_config(results_dir: Path) -> dict | None:
         return json.load(f)
 
 
+class SteeringHook:
+    """Add alpha * direction to hidden states at a target layer. Context-manager API."""
+
+    def __init__(self, model, direction, layer: int, alpha: float):
+        self._model = model
+        self._direction = direction.to(model.device)
+        self._layer = layer
+        self._alpha = alpha
+        self._handle = None
+
+    def __enter__(self):
+        target = self._model.model.layers[self._layer]
+        vec = (self._alpha * self._direction).to(self._model.dtype)
+
+        def hook(module, input, output):
+            hs = output[0] if isinstance(output, tuple) else output
+            hs = hs + vec
+            if isinstance(output, tuple):
+                return (hs,) + output[1:]
+            return hs
+
+        self._handle = target.register_forward_hook(hook)
+        return self
+
+    def __exit__(self, *exc):
+        if self._handle is not None:
+            self._handle.remove()
+            self._handle = None
+        return False
+
+
 # ── Stage: steering runs ─────────────────────────────────────────────
 
 def _steering_sanity_check(results_dir: Path, condition: str, model, tokenizer,
-                           trainer, device: str):
+                           hook: SteeringHook, device: str):
     """Verify steering hook works: steered output differs, hook removal restores original.
 
     Tests on 2 dev prompts. Logs to results/steering_sanity.json.
@@ -1039,7 +1067,7 @@ def _steering_sanity_check(results_dir: Path, condition: str, model, tokenizer,
 
         unsteered = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
 
-        with trainer:
+        with hook:
             steered = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
 
         restored = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
@@ -1098,7 +1126,6 @@ def _run_steered(results_dir: Path, condition: str, model, tokenizer,
     attention layers ignore them.
     """
     import torch
-    from safetune.runner import steer
     from run_base_module import (run_episode, run_episodes_batched,
                                   _make_batch_config, BATCH_CONFIG_KEY)
 
@@ -1142,13 +1169,11 @@ def _run_steered(results_dir: Path, condition: str, model, tokenizer,
         direction = rand_dir
         print(f"  Using random control direction (same norm, layer={layer})")
 
-    trainer = steer.RefusalDirectionTrainer(model, tokenizer, alpha=alpha)
-    trainer._direction = direction
-    trainer._layer = layer
+    hook = SteeringHook(model, direction, layer, alpha)
 
-    _steering_sanity_check(results_dir, condition, model, tokenizer, trainer, device)
+    _steering_sanity_check(results_dir, condition, model, tokenizer, hook, device)
 
-    with trainer:
+    with hook:
         for chunk_start in range(0, len(to_run), max(batch_size, 1)):
             chunk = to_run[chunk_start:chunk_start + max(batch_size, 1)]
             if batch_size > 1:
