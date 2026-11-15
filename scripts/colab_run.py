@@ -1015,15 +1015,28 @@ class SteeringHook:
         self._handle = None
 
     def __enter__(self):
+        import torch
         target = self._model.model.layers[self._layer]
-        vec = (self._alpha * self._direction).to(self._model.dtype)
+        vec = (self._alpha * self._direction).to(
+            device=self._model.device, dtype=self._model.dtype)
+        self._hook_called = False
 
         def hook(module, input, output):
-            hs = output[0] if isinstance(output, tuple) else output
-            hs = hs + vec
+            self._hook_called = True
             if isinstance(output, tuple):
+                hs = output[0] + vec
                 return (hs,) + output[1:]
-            return hs
+            elif isinstance(output, torch.Tensor):
+                return output + vec
+            else:
+                # Dataclass (BaseModelOutputWithPast etc.)
+                hs = output[0] if hasattr(output, '__getitem__') else output.last_hidden_state
+                hs = hs + vec
+                if hasattr(output, '__getitem__'):
+                    output[0] = hs
+                else:
+                    output.last_hidden_state = hs
+                return output
 
         self._handle = target.register_forward_hook(hook)
         return self
@@ -1068,12 +1081,19 @@ def _steering_sanity_check(results_dir: Path, condition: str, model, tokenizer,
         unsteered = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
 
         with hook:
+            hook._hook_called = False
             steered = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
+            if not hook._hook_called:
+                raise RuntimeError(
+                    f"Steering hook was never called during generation for {ep['episode_id']}. "
+                    f"Layer {hook._layer} may not match model architecture.")
 
         restored = generate_response(model, tokenizer, msgs, max_new_tokens=64, device=device)
 
         differs = steered != unsteered
         restores = restored == unsteered
+        print(f"    sanity {ep['episode_id']}: hook_called={hook._hook_called}, "
+              f"differs={differs}, restores={restores}")
 
         results.append({
             "episode_id": ep["episode_id"],
