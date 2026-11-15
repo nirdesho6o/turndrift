@@ -1423,6 +1423,7 @@ def _write_run_base_module():
         "verify_batched_outputs = _mod.verify_batched_outputs\n"
         "check_batch_config_consistency = _mod.check_batch_config_consistency\n"
         "_make_batch_config = _mod._make_batch_config\n"
+        "_tokenize_messages = _mod._tokenize_messages\n"
         "BATCH_CONFIG_KEY = _mod.BATCH_CONFIG_KEY\n"
         "build_chat_messages = _mod.build_chat_messages\n"
     )
@@ -1466,6 +1467,8 @@ def main():
                         help="Proceed past kill rules")
     parser.add_argument("--batch-size", type=int, default=4,
                         help="Batch size for parallel generation (default 4 for T4 15GB, auto-reduces on OOM)")
+    parser.add_argument("--retune", action="store_true",
+                        help="Delete existing steering_config.json and re-run tuning")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)
@@ -1516,6 +1519,24 @@ def main():
     model, tokenizer = None, None
     if need_model:
         model, tokenizer = load_gpu_model(args.device, args.dtype, need_hidden_states=need_hidden)
+
+    if args.retune:
+        for f in ["steering_config.json", "steering_config_sha256.txt"]:
+            p = results_dir / "directions" / f
+            if p.exists():
+                p.unlink()
+                print(f"  --retune: deleted {p}")
+        sanity_p = results_dir / "steering_sanity.json"
+        if sanity_p.exists():
+            sanity_p.unlink()
+            print(f"  --retune: deleted {sanity_p}")
+        # Also delete stale steered transcripts so they get regenerated
+        for cond in ["steer_d1", "steer_d2", "steer_random"]:
+            cond_dir = results_dir / "transcripts" / cond
+            if cond_dir.exists():
+                import shutil
+                shutil.rmtree(cond_dir)
+                print(f"  --retune: deleted {cond_dir}")
 
     gate = None
 

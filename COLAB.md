@@ -45,4 +45,6 @@ To run specific stages: `--stages pilot_a1,gate_check`
 
 To override a kill rule: `--override-gate`
 
-Batch size: default 4 (T4). Auto-reduces on OOM. Batched-vs-unbatched equivalence is verified on 3 episodes at the start of `full_base` and logged to `results/batch_equivalence.json`. All conditions (base, D1, D2, random) use the same batch config; mixing configs fails loudly. Steering sanity check runs before each steered condition and is logged to `results/steering_sanity.json`.
+To re-tune steering (deletes old config + steered transcripts): `--retune`
+
+Batch size: default 4 (T4). Auto-reduces on OOM. Batched-vs-unbatched equivalence is verified on 3 episodes at the start of `full_base` and logged to `results/batch_equivalence.json`. All conditions (base, D1, D2, random) use the same batch config; mixing configs fails loudly. Steering coefficients are scale-relative: [0.5, 1, 2, 4] × mean‖h‖ at the target layer. Steering sanity check runs before each steered condition and is logged to `results/steering_sanity.json`.
