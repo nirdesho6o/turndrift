@@ -685,8 +685,51 @@ def _calibration_to_texts(entries, tokenizer, max_tokens: int = 512):
     return texts
 
 
+def _extract_direction_low_mem(model, tokenizer, pos_texts, neg_texts, layer: int):
+    """Extract mean-difference direction one prompt at a time (T4-safe).
+
+    Equivalent to SafeTune's extract_refusal_direction with
+    select_directions=False and pick_layer=N, but avoids the lm_head
+    forward pass that OOMs on T4.
+    """
+    import torch
+
+    activations = []
+    hook_handle = None
+
+    def _hook(module, input, output):
+        # output is (hidden_states, ...) or just hidden_states
+        hs = output[0] if isinstance(output, tuple) else output
+        activations.append(hs[:, -1, :].detach().cpu())
+
+    target_layer = model.model.layers[layer]
+    hook_handle = target_layer.register_forward_hook(_hook)
+
+    try:
+        def _collect(texts):
+            vecs = []
+            for text in texts:
+                ids = tokenizer.encode(text, return_tensors="pt", truncation=True, max_length=256)
+                ids = ids.to(model.device)
+                activations.clear()
+                with torch.no_grad():
+                    model(input_ids=ids, use_cache=False)
+                vecs.append(activations[0].squeeze(0))
+                _free_vram()
+            return torch.stack(vecs)
+
+        pos_acts = _collect(pos_texts)
+        neg_acts = _collect(neg_texts)
+    finally:
+        hook_handle.remove()
+
+    direction = pos_acts.mean(0) - neg_acts.mean(0)
+    direction = direction / direction.norm()
+    return direction, layer
+
+
 def stage_extract_d2(results_dir: Path, model, tokenizer, gate: GateResult):
-    """Extract D2 injection-contrast direction via SafeTune."""
+    """Extract D2 injection-contrast direction (low-memory, one prompt at a time)."""
     d2_path = results_dir / "directions" / "d2.pt"
     if d2_path.exists():
         print("  D2 direction cached")
@@ -696,35 +739,21 @@ def stage_extract_d2(results_dir: Path, model, tokenizer, gate: GateResult):
         print("  D2 not viable (AUROC < 0.6), skipping extraction")
         return
 
-    from safetune.steer import extract_refusal_direction, RefusalDirectionConfig
-
     _free_vram()
 
     injection = load_calibration("injection")
     clean = load_calibration("clean")
-    inj_texts = _calibration_to_texts(injection, tokenizer, max_tokens=256)
-    clean_texts = _calibration_to_texts(clean, tokenizer, max_tokens=256)
-
-    # SafeTune batches internally at ~15; on T4 the lm_head OOMs on long
-    # batches. Cap each side at 15 so internal batches are ≤5.
-    max_cal = 15
-    if len(inj_texts) > max_cal:
-        inj_texts = inj_texts[:max_cal]
-    if len(clean_texts) > max_cal:
-        clean_texts = clean_texts[:max_cal]
+    inj_texts = _calibration_to_texts(injection, tokenizer, max_tokens=256)[:15]
+    clean_texts = _calibration_to_texts(clean, tokenizer, max_tokens=256)[:15]
 
     print(f"  D2: {len(inj_texts)} injection vs {len(clean_texts)} clean, layer={gate.a4_best_layer}")
-    direction, layer, meta = extract_refusal_direction(
-        model, tokenizer, inj_texts, clean_texts,
-        RefusalDirectionConfig(
-            select_directions=False,
-            pick_layer=gate.a4_best_layer,
-        ),
+    direction, layer = _extract_direction_low_mem(
+        model, tokenizer, inj_texts, clean_texts, gate.a4_best_layer,
     )
 
     d2_path.parent.mkdir(parents=True, exist_ok=True)
     import torch
-    torch.save({"direction": direction, "layer": layer, "meta": meta}, d2_path)
+    torch.save({"direction": direction, "layer": layer, "meta": {"method": "mean_diff_low_mem", "n_pos": len(inj_texts), "n_neg": len(clean_texts)}}, d2_path)
     print(f"  D2 extracted at layer {layer}")
 
 
