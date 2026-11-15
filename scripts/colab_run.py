@@ -253,7 +253,7 @@ def select_pilot_episodes(episodes):
 
 # ── Stage: pilot_a1 ─────────────────────────────────────────────────
 
-def stage_pilot_a1(results_dir: Path, model, tokenizer, device: str, batch_size: int = 16):
+def stage_pilot_a1(results_dir: Path, model, tokenizer, device: str, batch_size: int = 4):
     """Run base model on 20 attack + 20 benign pilot episodes."""
     from detectors import detect
 
@@ -514,7 +514,7 @@ def stage_pilot_a2(results_dir: Path):
 
 # ── Stage: full_base ─────────────────────────────────────────────────
 
-def stage_full_base(results_dir: Path, model, tokenizer, device: str, batch_size: int = 16):
+def stage_full_base(results_dir: Path, model, tokenizer, device: str, batch_size: int = 4):
     """Run base model on all 120 episodes (skips pilot episodes already cached)."""
     from run_base_module import (run_episode, run_episodes_batched, verify_batched_outputs,
                                   check_batch_config_consistency, _make_batch_config)
@@ -1032,7 +1032,7 @@ def _steering_sanity_check(results_dir: Path, condition: str, model, tokenizer,
 
 def _run_steered(results_dir: Path, condition: str, model, tokenizer,
                  direction_path: Path, alpha: float, device: str,
-                 random_control: bool = False, batch_size: int = 16):
+                 random_control: bool = False, batch_size: int = 4):
     """Run all episodes with a steering direction applied.
 
     Runs dev split first, then test — test only proceeds if the frozen
@@ -1123,7 +1123,7 @@ def _run_steered(results_dir: Path, condition: str, model, tokenizer,
                     print(f"  {eid} [{split_tag}] BENIGN")
 
 
-def stage_steer_d1(results_dir: Path, model, tokenizer, device: str, batch_size: int = 16):
+def stage_steer_d1(results_dir: Path, model, tokenizer, device: str, batch_size: int = 4):
     d1_path = results_dir / "directions" / "d1.pt"
     if not d1_path.exists():
         print("  D1 direction not found, skipping")
@@ -1141,7 +1141,7 @@ def stage_steer_d1(results_dir: Path, model, tokenizer, device: str, batch_size:
 
 
 def stage_steer_d2(results_dir: Path, model, tokenizer, device: str, gate: GateResult,
-                   batch_size: int = 16):
+                   batch_size: int = 4):
     d2_path = results_dir / "directions" / "d2.pt"
     if not d2_path.exists():
         if not gate.d2_viable:
@@ -1162,7 +1162,7 @@ def stage_steer_d2(results_dir: Path, model, tokenizer, device: str, gate: GateR
 
 
 def stage_steer_random(results_dir: Path, model, tokenizer, device: str, gate: GateResult,
-                       batch_size: int = 16):
+                       batch_size: int = 4):
     config = load_steering_config(results_dir)
     if config is None:
         print("  ERROR: steering_config.json not frozen, cannot run random control")
@@ -1285,8 +1285,8 @@ def main():
                         help="Comma-separated stage subset (default: all)")
     parser.add_argument("--override-gate", action="store_true",
                         help="Proceed past kill rules")
-    parser.add_argument("--batch-size", type=int, default=16,
-                        help="Batch size for parallel generation (default 16, auto-reduces on OOM)")
+    parser.add_argument("--batch-size", type=int, default=4,
+                        help="Batch size for parallel generation (default 4 for T4 15GB, auto-reduces on OOM)")
     args = parser.parse_args()
 
     results_dir = Path(args.results_dir)

@@ -36,7 +36,7 @@ subprocess.run(["pip", "install", "-q", "-r", f"{repo_dir}/requirements.txt"], c
 ```python
 !python /content/turndrift/scripts/colab_run.py \
     --results-dir /content/drive/MyDrive/turndrift_results \
-    --batch-size 16
+    --batch-size 4
 ```
 
 To resume after a disconnect, just re-run both cells — all completed stages are skipped.
@@ -45,4 +45,4 @@ To run specific stages: `--stages pilot_a1,gate_check`
 
 To override a kill rule: `--override-gate`
 
-Batch size: default 16 (T4). Auto-reduces on OOM. Batched-vs-unbatched equivalence is verified on 3 episodes at the start of `full_base` and logged to `results/batch_equivalence.json`. All conditions (base, D1, D2, random) use the same batch config; mixing configs fails loudly. Steering sanity check runs before each steered condition and is logged to `results/steering_sanity.json`.
+Batch size: default 4 (T4). Auto-reduces on OOM. Batched-vs-unbatched equivalence is verified on 3 episodes at the start of `full_base` and logged to `results/batch_equivalence.json`. All conditions (base, D1, D2, random) use the same batch config; mixing configs fails loudly. Steering sanity check runs before each steered condition and is logged to `results/steering_sanity.json`.

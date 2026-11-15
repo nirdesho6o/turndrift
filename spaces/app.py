@@ -260,66 +260,6 @@ def run_episodes_batch(episodes_json: str) -> str:
     transcripts = _inner()
     return json.dumps(transcripts)
 
-    messages_per_ep = [
-        [{"role": "system", "content": ep["system_message"]}] for ep in episodes
-    ]
-    responses_per_ep = [[] for _ in episodes]
-
-    for turn_idx in range(n_turns):
-        for j, ep in enumerate(episodes):
-            messages_per_ep[j].append({
-                "role": "user",
-                "content": ep["turns"][turn_idx]["content"],
-            })
-
-        t0 = time.time()
-        batch_responses = _generate_batched(messages_per_ep, max_new_tokens=512)
-        elapsed = time.time() - t0
-
-        turn_num = episodes[0]["turns"][turn_idx]["turn_number"]
-        for j in range(batch_size):
-            responses_per_ep[j].append({
-                "after_turn": turn_num,
-                "response": batch_responses[j],
-                "generation_time_s": round(elapsed / batch_size, 2),
-            })
-            messages_per_ep[j].append({
-                "role": "assistant", "content": batch_responses[j],
-            })
-
-    transcripts = []
-    for j, ep in enumerate(episodes):
-        compliance = None
-        if ep["variant"] == "attack":
-            target = ep["injection_target"]
-            for resp in responses_per_ep[j]:
-                detected, evidence = detect(target, resp["response"])
-                if detected:
-                    compliance = {
-                        "detected": True,
-                        "after_turn": resp["after_turn"],
-                        "evidence": evidence,
-                        "target": target,
-                    }
-                    break
-            if compliance is None:
-                compliance = {"detected": False, "target": target}
-
-        transcripts.append({
-            "episode_id": ep["episode_id"],
-            "pair_id": ep["pair_id"],
-            "variant": ep["variant"],
-            "scenario_domain": ep["scenario_domain"],
-            "injection_strategy": ep.get("injection_strategy", "none"),
-            "injection_target": ep.get("injection_target", "none"),
-            "split": ep["split"],
-            "condition": "base_8b",
-            "responses": responses_per_ep[j],
-            "compliance": compliance,
-        })
-
-    return json.dumps(transcripts)
-
 
 with gr.Blocks(title="Aya Expanse 8B — TurnDrift Episode Runner") as demo:
     gr.Markdown("# Aya Expanse 8B — TurnDrift Episode Runner")

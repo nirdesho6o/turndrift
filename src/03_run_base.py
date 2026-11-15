@@ -216,7 +216,9 @@ def run_episodes_batched(
 
     n_turns = len(episodes[0]["turns"])
 
-    # Process in chunks of batch_size
+    # effective_bs persists across chunks and turns so OOM reductions stick
+    effective_bs = batch_size
+
     all_transcripts = []
     for chunk_start in range(0, len(episodes), batch_size):
         chunk = episodes[chunk_start:chunk_start + batch_size]
@@ -235,7 +237,7 @@ def run_episodes_batched(
                 })
 
             t0 = time.time()
-            current_bs = bs
+            current_bs = min(effective_bs, bs)
             batch_responses = None
             while current_bs >= 1:
                 try:
@@ -250,7 +252,8 @@ def run_episodes_batched(
                 except torch.cuda.OutOfMemoryError:
                     torch.cuda.empty_cache()
                     current_bs = max(1, current_bs // 2)
-                    print(f"\n  OOM: reducing batch size to {current_bs}")
+                    effective_bs = current_bs
+                    print(f"\n  OOM: reducing effective batch size to {effective_bs}")
                     if current_bs == 1:
                         batch_responses = []
                         for j in range(bs):
@@ -483,8 +486,8 @@ def main():
                         help="Only run episodes from this split")
     parser.add_argument("--skip-existing", action="store_true", default=True,
                         help="Skip episodes with existing transcripts")
-    parser.add_argument("--batch-size", type=int, default=16,
-                        help="Batch size for parallel generation (default 16)")
+    parser.add_argument("--batch-size", type=int, default=4,
+                        help="Batch size for parallel generation (default 4 for T4 15GB)")
     args = parser.parse_args()
 
     out_dir = Path(args.output_dir)
