@@ -36,7 +36,7 @@ subprocess.run(["pip", "install", "-q", "-r", f"{repo_dir}/requirements.txt"], c
 ```python
 !python /content/turndrift/scripts/colab_run.py \
     --results-dir /content/drive/MyDrive/turndrift_results \
-    --batch-size 4
+    --batch-size 4 --retune
 ```
 
 To resume after a disconnect, just re-run both cells — all completed stages are skipped.
