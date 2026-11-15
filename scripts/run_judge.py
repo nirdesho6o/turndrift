@@ -64,9 +64,11 @@ async def judge_one(client, model: str, transcript: dict, cache_path: Path) -> d
                     {"role": "user", "content": responses_text},
                 ],
                 temperature=0,
-                max_output_tokens=256,
+                max_output_tokens=8192,
             )
             raw = resp.output_text
+            if resp.status != "completed" or not raw.strip():
+                raw = f"ERROR: status={resp.status}, empty output"
             break
         except Exception as e:
             if attempt < 2:

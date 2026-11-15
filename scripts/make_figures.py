@@ -91,7 +91,7 @@ def fig_icr_by_strategy(egta: dict, fig_dir: Path):
     ax.spines["right"].set_visible(False)
 
     fig.tight_layout()
-    out = fig_dir / "icr_by_strategy.png"
+    out = fig_dir / f"icr_by_strategy_{egta['split']}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {out}")
@@ -128,7 +128,7 @@ def fig_defense_comparison(egta: dict, fig_dir: Path):
     ax.spines["right"].set_visible(False)
 
     fig.tight_layout()
-    out = fig_dir / "defense_comparison.png"
+    out = fig_dir / f"defense_comparison_{egta['split']}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {out}")
@@ -210,7 +210,7 @@ def fig_fragment_innocuousness(egta: dict, fig_dir: Path):
                 fontsize=10, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow"))
 
     fig.tight_layout()
-    out = fig_dir / "fragment_innocuousness.png"
+    out = fig_dir / f"fragment_innocuousness_{egta['split']}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {out}")

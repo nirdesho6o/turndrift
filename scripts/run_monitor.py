@@ -129,9 +129,11 @@ async def monitor_one_per_turn(client, transcript: dict, cache_dir: Path) -> dic
                         {"role": "user", "content": conversation_text},
                     ],
                     temperature=0,
-                    max_output_tokens=256,
+                    max_output_tokens=16384,
                 )
                 raw = r.output_text
+                if r.status != "completed" or not raw.strip():
+                    raw = f"ERROR: status={r.status}, empty output"
                 break
             except Exception as e:
                 if attempt < 2:
@@ -150,7 +152,7 @@ async def monitor_one_per_turn(client, transcript: dict, cache_dir: Path) -> dic
         "injection_strategy": transcript.get("injection_strategy", "none"),
         "injection_target": transcript.get("injection_target", "none"),
         "split": transcript.get("split"),
-        "compliance_detected": transcript.get("compliance", {}).get("detected", False),
+        "compliance_detected": (transcript.get("compliance") or {}).get("detected", False),
         "monitor_verdict": "BLOCK" if any_block else "ALLOW",
         "turn_verdicts": turn_verdicts,
         "first_block_turn": next((tv["turn"] for tv in turn_verdicts if tv["verdict"] == "BLOCK"), None),
@@ -190,9 +192,11 @@ async def monitor_one(client, transcript: dict, cache_dir: Path) -> dict:
                         {"role": "user", "content": conversation_text},
                     ],
                     temperature=0,
-                    max_output_tokens=256,
+                    max_output_tokens=16384,
                 )
                 raw = r.output_text
+                if r.status != "completed" or not raw.strip():
+                    raw = f"ERROR: status={r.status}, empty output"
                 break
             except Exception as e:
                 if attempt < 2:
@@ -211,7 +215,7 @@ async def monitor_one(client, transcript: dict, cache_dir: Path) -> dict:
         "injection_strategy": transcript.get("injection_strategy", "none"),
         "injection_target": transcript.get("injection_target", "none"),
         "split": transcript.get("split"),
-        "compliance_detected": transcript.get("compliance", {}).get("detected", False),
+        "compliance_detected": (transcript.get("compliance") or {}).get("detected", False),
         "monitor_verdict": "BLOCK" if any_block else "ALLOW",
         "turn_verdicts": turn_verdicts,
         "first_block_turn": next((tv["turn"] for tv in turn_verdicts if tv["verdict"] == "BLOCK"), None),
