@@ -123,14 +123,11 @@ def render_episode(episode_id: str) -> tuple[str, str, str]:
 
 
 def filter_episodes(variant: str):
-    return gr.update(choices=list_episodes(variant), value=None)
+    return gr.Dropdown(choices=list_episodes(variant), value=None)
 
 
 def build_app():
-    with gr.Blocks(
-        title="TurnDrift-Control Replay",
-        theme=gr.themes.Soft(),
-    ) as app:
+    with gr.Blocks(title="TurnDrift-Control Replay", theme=gr.themes.Soft()) as app:
         gr.Markdown(
             "# TurnDrift-Control — Transcript Replay\n\n"
             "Browse multi-turn prompt injection episodes from the TurnDrift-Control benchmark.\n\n"

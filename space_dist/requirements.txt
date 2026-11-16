@@ -1,2 +1,1 @@
-huggingface_hub<0.25
 audioop-lts; python_version >= "3.13"
