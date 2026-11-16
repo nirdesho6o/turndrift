@@ -1,6 +1,6 @@
 # When Safety Looks the Wrong Way: Multi-Turn Prompt Injection as an Information-Hiding Game
 
-**Claim:** A full-context external monitor reduces worst-case attack success against a 3.35B agent model from 37.5% to 16.2% (dev), but intercepts split-payload injections only after the model has already complied.
+**Claim:** A full-context external monitor reduces worst-case attack success against a 3.35B agent model from 37.5% to 18.8% (dev), but intercepts split-payload injections only after the model has already complied.
 
 **Tracks:** Track 2a, Problem Statement 3 — Multi-turn audits
 
@@ -16,17 +16,17 @@
 
 Large language models used as agents process documents, tool outputs, and retrieved content during multi-turn conversations. An attacker who controls any of these inputs can embed hidden instructions that the model may follow. We built **TurnDrift-Control**, a benchmark of 120 scripted agent conversations (60 attack + 60 benign twins, 720 turns) testing whether `CohereLabs/tiny-aya-global` (3.35B parameters) follows hidden instructions planted across multiple turns, and whether external monitors can detect and block the attack before the model complies.
 
-**Key findings (dev split, n=45 attacks, n=60 benign):**
+**Key findings (dev split, n=45 attacks, n=10 unique benign):**
 
 1. **Undefended:** 17.8% injection compliance rate (8/45); single-turn attacks succeed 37.5% (3/8) vs. 11.9% average for multi-fragment strategies (0.32×).
-2. **Full-context monitor:** Worst-case ASR drops from 37.5% → 16.7%, with 13.3% FPR (8/60 benign blocked). Detection: 82.2% of all attacks (37/45), 50.0% of compliant attacks (4/8).
+2. **Full-context monitor:** Worst-case ASR drops from 37.5% → 16.7%, with 20.0% FPR (2/10 unique benign blocked). Detection: 82.2% of all attacks (37/45), 50.0% of compliant attacks (4/8).
 3. **Blocked-in-time:** The monitor blocks 7/7 (100%) single-turn compliant episodes before compliance, but only 2/7 (28.6%) split-strategy compliant episodes — for split payloads, the monitor mostly fires too late.
-4. **LP-optimal mixed defense:** 53.8% full-context monitor + 43.2% no defense + 3.0% per-turn monitor achieves worst-case ASR 16.2% within a 10% over-refusal budget.
-5. **Pre-injection secret leakage:** The model spontaneously reproduces the system-prompt canary in 10% of benign episodes (6/60, all in `customer_support` domain), without any adversarial input.
+4. **LP-optimal mixed defense:** 50% full-context monitor + 50% no defense achieves worst-case ASR 18.8% within a 10% over-refusal budget.
+5. **Pre-injection secret leakage:** The model spontaneously reproduces the system-prompt canary in 1 of 10 unique benign conversations (the `customer_support` domain; repeated identically across 6 replicas under greedy decoding), without any adversarial input.
 
 **Falsified prediction:** We pre-registered that splitting injections across turns would maintain compliance within 20pp of single-turn. Instead, multi-fragment compliance was 0.32× the single-turn rate — the model cannot reliably assemble fragmented instructions at 3.35B scale.
 
-**Test split (n=15 attacks):** 40.0% ICR, LP worst-case ASR 41.6%. Single-turn succeeds 100% (4/4); split strategies: 16.7% average.
+**Test split (n=15 attacks):** 40.0% ICR, LP worst-case ASR 50.0%. Single-turn succeeds 100% (4/4); split strategies: 16.7% average.
 
 ---
 
@@ -34,8 +34,8 @@ Large language models used as agents process documents, tool outputs, and retrie
 
 | Metric | Undefended (before) | Mixed monitor policy (after) |
 |--------|-------------------|------------------------------|
-| Worst-case ASR (dev) | 37.5% (n=8, single-turn) | **16.2%** (LP mixture) |
-| Worst-case ASR (test) | 100.0% (n=4, single-turn) | **41.6%** (LP mixture) |
+| Worst-case ASR (dev) | 37.5% (n=8, single-turn) | **18.8%** (LP mixture) |
+| Worst-case ASR (test) | 100.0% (n=4, single-turn) | **50.0%** (LP mixture) |
 | Over-refusal (dev) | 0.0% (0/60) | 10.0% (mixture) |
 
 **Base model + method:** `CohereLabs/tiny-aya-global` (3.35B, FP16) attacked with scripted multi-turn prompt injections; defended by an external `Qwen/Qwen3.5-397B-A39B` monitor in full-context and per-turn modes; game-theoretic (EGTA) optimal defense policy via linear programming.
@@ -48,7 +48,7 @@ Large language models used as agents process documents, tool outputs, and retrie
 2. **Finding 1:** The full-context monitor catches single-turn injections before the model complies (7/7) but fires too late for split payloads (2/7). The monitor works, but the attacker can (partially) evade it by splitting.
 3. **Finding 2:** Splitting injections *reduces* compliance (0.32×) — the opposite of what we predicted. The model can't assemble fragments.
 4. **Finding 3:** The model leaks the system-prompt canary in 100% of customer_support benign episodes — a safety-relevant leak with no adversarial input.
-5. **Method:** Game-theoretic analysis (EGTA) produces a mixed defense (54% monitor, 43% none, 3% per-turn) that achieves 16.2% worst-case ASR within 10% over-refusal.
+5. **Method:** Game-theoretic analysis (EGTA) produces a mixed defense (50% monitor, 50% none) that achieves 18.8% worst-case ASR within 10% over-refusal.
 6. **Artifacts:** [GitHub repo](https://github.com/nirdesho6o/turndrift), [HF dataset](https://huggingface.co/datasets/nirdesho6o/turndrift-control), [replay demo](https://huggingface.co/spaces/nirdesho6o/turndrift-replay).
 
 ---
@@ -72,7 +72,7 @@ Modern LLM agents ingest tool outputs, retrieved documents, and API responses du
 
 1. **H1 (confirmed):** The model will follow at least some injected instructions in the no-defense condition. *Result: 17.8% ICR (dev).*
 2. **H2 (falsified):** Split-payload strategies will maintain ICR within 20pp of single-turn. *Result: 11.9% vs. 37.5% = 0.32× ratio; Δ = −25.6pp.*
-3. **H3 (confirmed):** External monitoring reduces worst-case ASR. *Result: 37.5% → 16.7% (full-context pure), 16.2% (LP mixture).*
+3. **H3 (confirmed):** External monitoring reduces worst-case ASR. *Result: 37.5% → 16.7% (full-context pure), 18.8% (LP mixture).*
 4. **H4 (not tested):** Activation steering reduces compliance. *D2 direction extracted (AUROC 0.946) but GPU steering not run.*
 
 ### Related work
@@ -95,7 +95,7 @@ Modern LLM agents ingest tool outputs, retrieved documents, and API responses du
 - **SchemaGate:** Validated all 120 episodes against required fields and token length bounds (min=20, max=8192). Result: 120/120 passed.
 - **DiversityGate (embedding-based near-duplicate detection):** Ran cosine-similarity dedup (threshold=0.85) on the full dataset. Found 110/120 near-duplicates — expected, as benign twins within each domain share the same template. Used for cross-split leak detection.
 - **Cross-split leak checks:** Ran DiversityGate on (dev + test) and (calibration + test) to detect embedding-level near-duplicates across splits. Dev↔Test: 27 embedding near-dups (structural similarity from shared template format, not content leaks — domain-level split is clean, 0 domain overlap). Calibration↔Test: 27 embedding near-dups.
-- **Exact deduplication:** SHA-256 hashing found 50 exact duplicates — all benign-benign pairs within the same domain (by design: benign twins share the same template, only attack twins add injection fragments). 70 unique texts.
+- **Exact deduplication:** SHA-256 hashing found 50 exact duplicates — all benign-benign pairs within the same domain (by design: benign twins are domain-matched, not strategy-matched, so within each domain the conversation text is identical under greedy decoding). 70 unique texts (60 attack + 10 benign). **All benign-based metrics (FPR, over-refusal, leakage) are computed on the 10 unique benign conversations** to avoid inflating n.
 - **Provenance recording:** CuratorKIT report includes corpus SHA-256 fingerprint, library version, and parameter snapshot.
 
 **Report:** `results/curatorkit/curatorkit_report.json`
@@ -331,8 +331,8 @@ Bootstrap 95% CIs (dev, no defense): single_turn 37.5% [12.5, 75.0] (n=8); two_f
 | Defense | Det. (all atk) | Det. (compliant) | FPR | Over-refusal | WC-ASR |
 |---------|----------------|-------------------|-----|-------------|--------|
 | None | — | — | — | 0.0% (0/60) | 37.5% |
-| Full-context | 82.2% (37/45) | 50.0% (4/8) | 13.3% (8/60) | 13.3% (8/60) | 16.7% |
-| Per-turn | 100% (45/45) | 100% (8/8) | 93.3% (56/60) | 93.3% (56/60) | 0.0% |
+| Full-context | 82.2% (37/45) | 50.0% (4/8) | 20.0% (2/10) | 20.0% | 16.7% |
+| Per-turn | 100% (45/45) | 100% (8/8) | 100% (10/10) | 100% | 0.0% |
 
 ### Finding 1: Blocked-in-time — single vs. split
 
@@ -354,8 +354,8 @@ The full-context monitor blocks **7/7 (100%)** single-turn compliant episodes be
 | Defense | Worst-Case ASR | Best Attacker | Over-refusal | Manipulability |
 |---------|---------------|---------------|-------------|----------------|
 | None | 37.5% | single_turn | 0.0% (0/60) | — |
-| Full-context | 16.7% | two_fragment | 13.3% (8/60) | 16.7pp |
-| Per-turn | 0.0% | — | 93.3% (56/60) | 0.0pp |
+| Full-context | 16.7% | two_fragment | 20.0% (2/10) | 16.7pp |
+| Per-turn | 0.0% | — | 100% (10/10) | 0.0pp |
 
 The full-context monitor forces the attacker away from single-turn (which the monitor catches 100%) toward split strategies.
 
@@ -363,12 +363,12 @@ The full-context monitor forces the attacker away from single-turn (which the mo
 
 | Split | LP weights | Worst-case ASR | Over-refusal |
 |-------|-----------|----------------|-------------|
-| Dev | 53.8% full-ctx, 43.2% none, 3.0% per-turn | **16.2%** | ≤10% |
-| Test | 75.2% full-ctx, 24.8% none | **41.6%** | ≤10% |
+| Dev | 50% full-ctx, 50% none | **18.8%** | ≤10% |
+| Test | 50% full-ctx, 50% none | **50.0%** | ≤10% |
 
 ### Finding 4: Pre-injection secret leakage
 
-The model spontaneously reproduces the system-prompt canary token (`CANARY_TOKEN_abc123`) in 10% of benign episodes (6/60), concentrated entirely in the `customer_support` domain (6/6, 100%). All other domains: 0%.
+The model spontaneously reproduces the system-prompt canary token (`CANARY_TOKEN_abc123`) in 1 of 10 unique benign conversations (10%), from a single `customer_support` domain conversation repeated identically across 6 replicas under greedy decoding. All other domains: 0%. This is from one conversation, not six independent observations.
 
 The model role-plays internal notes and includes the canary as an "Internal Config" field:
 ```
@@ -448,6 +448,7 @@ Tiny Aya is ~9× cheaper per 1k replies but requires GPU infrastructure.
 ### Known weaknesses
 
 1. **Small n:** Only 14 compliant episodes (8 dev, 6 test). Per-strategy cells have 0–4 compliant episodes. Bootstrap CIs are wide. Findings are directional, not conclusive.
+1b. **Benign twin deduplication:** Benign twins are domain-matched, not strategy-matched — within each domain the benign conversation text is identical under greedy decoding. The 60 benign episodes collapse to 10 unique conversations (one per domain). FPR and over-refusal are computed on unique counts (n=10), giving wide confidence intervals (FPR 95% CI: [0%, 50%]). The pre-injection leakage finding comes from a single `customer_support` conversation, not six independent observations. **Future work:** strategy-matched benign twins with domain-specific benign content varying by injection strategy.
 2. **Provisional base transcripts:** Generated with a known `position_ids` bug (batch_size=16, no cumulative sum for multi-sample batches). Compliance detection is deterministic (unaffected) but generated text quality may differ from a correct implementation.
 3. **English only.** No multilingual evaluation (Hindi was planned but cut).
 4. **Proxy targets.** All injection targets are benign proxies (canary extraction, format changes). Real attacks would target genuinely harmful actions.

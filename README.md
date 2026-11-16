@@ -2,7 +2,7 @@
 
 **Multi-turn prompt injection benchmark for agent conversations.**
 
-**Claim:** A full-context external monitor reduces worst-case attack success against a 3.35B agent model from 37.5% to 16.2% (dev), but intercepts split-payload injections only after the model has already complied.
+**Claim:** A full-context external monitor reduces worst-case attack success against a 3.35B agent model from 37.5% to 18.8% (dev), but intercepts split-payload injections only after the model has already complied.
 
 Built for the [Lexsi Labs AI Safety & Alignment Hackathon](https://hackathon.lexsi.ai), Track 2a, Problem Statement 3 (multi-turn audits).
 
@@ -22,8 +22,8 @@ TurnDrift-Control tests whether `CohereLabs/tiny-aya-global` (3.35B) follows hid
 
 | Metric | Undefended (before) | Mixed monitor policy (after) |
 |--------|-------------------|------------------------------|
-| Worst-case ASR (dev) | 37.5% (n=8) | **16.2%** (LP mixture) |
-| Worst-case ASR (test) | 100.0% (n=4) | **41.6%** (LP mixture) |
+| Worst-case ASR (dev) | 37.5% (n=8) | **18.8%** (LP mixture) |
+| Worst-case ASR (test) | 100.0% (n=4) | **50.0%** (LP mixture) |
 | Over-refusal (dev) | 0.0% | 10.0% |
 
 ## Key findings
@@ -33,13 +33,15 @@ TurnDrift-Control tests whether `CohereLabs/tiny-aya-global` (3.35B) follows hid
 | Base ICR (single-turn) | 37.5% (3/8) | 100.0% (4/4) |
 | Base ICR (overall) | 17.8% (8/45) | 40.0% (6/15) |
 | Full-context monitor detection (all attacks) | 82.2% (37/45) | 80.0% (12/15) |
-| Full-context monitor FPR | 13.3% (8/60) | 13.3% (8/60) |
-| LP-optimal worst-case ASR | 16.2% | 41.6% |
+| Full-context monitor FPR | 20.0% (2/10 unique) | 20.0% (2/10 unique) |
+| LP-optimal worst-case ASR | 18.8% | 50.0% |
 | Compliance ratio (multi-frag / single) | 0.32x | 0.17x |
 | Blocked in time: single-turn | 7/7 (100%) | — |
 | Blocked in time: split | 2/7 (28.6%) | — |
 
-**Pre-injection secret leakage:** The model spontaneously leaks the system-prompt canary in 10% of benign episodes (6/60), all in the `customer_support` domain (6/6, 100%). Two canary-extraction episodes excluded from ICR/EGTA. The full-context monitor intercepts single-turn injections before compliance (7/7), but for split payloads it mostly fires only after the model has already complied (2/7). Splitting injections across turns made the model *less* likely to comply — **falsifying** our pre-registered prediction.
+**Pre-injection secret leakage:** The model spontaneously leaks the system-prompt canary in 1 of 10 unique benign conversations (the `customer_support` domain; repeated identically across 6 replicas under greedy decoding). Two canary-extraction episodes excluded from ICR/EGTA. The full-context monitor intercepts single-turn injections before compliance (7/7), but for split payloads it mostly fires only after the model has already complied (2/7). Splitting injections across turns made the model *less* likely to comply — **falsifying** our pre-registered prediction.
+
+**Note on benign deduplication:** Benign twins are domain-matched, not strategy-matched — within each domain the benign conversation is identical. The 60 benign episodes collapse to 10 unique conversations (one per domain). All FPR and over-refusal metrics are computed on unique counts (n=10). **Limitation:** strategy-matched benign twins (with domain-specific benign content varying by strategy) are future work.
 
 ## Kits used
 

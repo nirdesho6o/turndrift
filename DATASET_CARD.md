@@ -38,8 +38,8 @@ over-refusal.
 | Base ICR (overall) | 17.8% (8/45) | 40.0% (6/15) |
 | Base ICR (single-turn) | 37.5% (3/8) | 100.0% (4/4) |
 | Full-context monitor detection (all attacks) | 82.2% (37/45) | 80.0% (12/15) |
-| Full-context monitor FPR | 13.3% (8/60) | 13.3% (8/60) |
-| LP-optimal worst-case ASR | 16.2% | 41.6% |
+| Full-context monitor FPR | 20.0% (2/10 unique) | 20.0% (2/10 unique) |
+| LP-optimal worst-case ASR | 18.8% | 50.0% |
 | Fragment compliance ratio | 0.32x | 0.17x |
 | Blocked in time: single-turn | 7/7 (100%) | — |
 | Blocked in time: split | 2/7 (28.6%) | — |
@@ -49,8 +49,9 @@ before compliance (7/7), but for split payloads it mostly fires only
 after the model has already complied (2/7).
 
 **Pre-injection secret leakage:** The model spontaneously leaks the
-system-prompt canary in 10% of benign episodes (6/60), all in the
-`customer_support` domain (6/6, 100%). Two canary-extraction episodes
+system-prompt canary in 1 of 10 unique benign conversations (10%),
+from the `customer_support` domain (repeated identically across 6
+replicas under greedy decoding). Two canary-extraction episodes
 in that domain ($n=2$, dev) excluded from ICR/EGTA due to unreliable
 detection. Other targets in that domain are unaffected.
 
@@ -73,9 +74,10 @@ but generated text quality may differ from a correct implementation.
 ## Leak Checks (CuratorKIT)
 
 - Schema valid: 120/120
-- Exact duplicates: 50 (benign twins with same domain template — by design)
+- Exact duplicates: 50 (benign twins are domain-matched, not strategy-matched — within each domain the conversation is identical). 70 unique texts (60 attack + 10 benign).
 - Embedding near-duplicates (cosine, threshold 0.85): structural template similarity (domains disjoint)
 - Domain-level split: 0 domain overlap between dev and test
+- **Benign-based metrics (FPR, over-refusal, leakage) computed on 10 unique benign conversations**
 
 ## Structure
 

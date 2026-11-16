@@ -31,9 +31,8 @@ hidden instructions, and whether a security monitor can catch it.
 Without any defense, the model followed hidden instructions in 23.3\%
 of attack conversations (14/60; 37.5\% for single-turn attacks, 3/8 on
 dev). An FPR-budgeted optimal defense---a randomized full-context
-monitor (Qwen~3.5 397B, weight 54\%, with 43\% no-defense and 3\%
-per-turn)---achieves worst-case ASR 16.2\% on dev within the 10\%
-over-refusal budget.
+monitor (Qwen~3.5 397B, weight 50\%, with 50\% no-defense)---achieves
+worst-case ASR 18.8\% on dev within the 10\% over-refusal budget.
 The full-context monitor intercepts single-turn injections before
 compliance (7/7 blocked in time), but for split payloads it mostly
 fires only after the model has already complied (2/7 blocked in time).
@@ -43,9 +42,10 @@ rate on dev)---\textbf{falsifying} our pre-registered prediction that
 split payloads would maintain compliance.
 An independent finding---\textbf{pre-injection secret leakage}---showed
 the model spontaneously reproducing the system-prompt canary token in
-10\% of benign episodes (6/60), concentrated entirely in one domain
-(customer\_support: 6/6, 100\%). Two canary-extraction episodes in
-that domain were excluded from ICR due to unreliable detection.
+1 of 10 unique benign conversations (10\%), from the customer\_support
+domain (repeated identically across 6 replicas under greedy decoding).
+Two canary-extraction episodes in that domain were excluded from ICR
+due to unreliable detection.
 Activation steering was attempted but did not produce usable
 results within the time constraint.
 
@@ -202,7 +202,7 @@ Larger models may behave differently.
 
 \textbf{Note:} The pre-registered per-turn innocuousness test (fragment
 flag rate vs.\ benign flag rate) is uninformative because the per-turn
-monitor's false positive rate is 93.3\% (56/60)---it flags nearly
+monitor's false positive rate is 100\% (10/10 unique benign)---it flags
 everything, so flag rates cannot distinguish fragments from benign messages.
 
 \subsection{Monitor Effectiveness}
@@ -216,8 +216,8 @@ everything, so flag rates cannot distinguish fragments from benign messages.
   & \textbf{FPR} & \textbf{Over-refusal} & \textbf{Worst-Case ASR} \\
 \midrule
 None       & ---              & ---            & ---          & 0.0\% (0/60)   & 37.5\% \\
-Full-ctx   & 82.2\% (37/45) & 50.0\% (4/8) & 13.3\% (8/60) & 13.3\% (8/60) & 16.7\% \\
-Per-turn   & 100\% (45/45) & 100\% (8/8) & 93.3\% (56/60) & 93.3\% (56/60) & 0.0\% \\
+Full-ctx   & 82.2\% (37/45) & 50.0\% (4/8) & 20.0\% (2/10) & 20.0\% & 16.7\% \\
+Per-turn   & 100\% (45/45) & 100\% (8/8) & 100\% (10/10) & 100\% & 0.0\% \\
 \bottomrule
 \end{tabular}
 \caption{Monitor performance (dev split). Detection uses the timing rule:
@@ -227,9 +227,9 @@ Over-refusal includes monitor benign blocks (model over-refusal is 0\%).}
 \end{table}
 
 The \textbf{full-context monitor} is the practical choice: 82.2\%
-detection rate over all attacks (37/45), 13.3\% false positive rate (8/60).
+detection rate over all attacks (37/45), 20.0\% false positive rate (2/10 unique benign).
 The per-turn monitor blocks every attack episode (45/45) but flags
-93.3\% (56/60) of benign traffic---unusable in practice.
+100\% (10/10) of unique benign conversations---unusable in practice.
 
 \textbf{Blocked-in-time by strategy type (exploratory, $n=14$):}
 The full-context monitor blocked \textbf{7/7 (100\%)} single-turn
@@ -308,8 +308,8 @@ to a (possibly mixed) defense, the attacker best-responds.
   & \textbf{Over-refusal} & \textbf{Manip.} \\
 \midrule
 None               & 37.5\% & single\_turn      & 0.0\% (0/60)   & --- \\
-Full-context mon.  & 16.7\% & two\_fragment     & 13.3\% (8/60)  & 16.7\,pp \\
-Per-turn mon.      & 0.0\%  & ---               & 93.3\% (56/60) & 0.0\,pp \\
+Full-context mon.  & 16.7\% & two\_fragment     & 20.0\% (2/10)  & 16.7\,pp \\
+Per-turn mon.      & 0.0\%  & ---               & 100\% (10/10) & 0.0\,pp \\
 \bottomrule
 \end{tabular}
 \caption{EGTA results (dev split). Over-refusal includes monitor benign
@@ -318,13 +318,13 @@ block rate.}
 \end{table}
 
 \textbf{LP-optimal mixed defense (dev):} With an over-refusal budget
-of 10\% (base 0\% + 10\,pp), the LP assigns \textbf{53.8\% weight to
-full-context monitor}, 43.2\% to no defense, and 3.1\% to per-turn
-monitor. This achieves min worst-case ASR of \textbf{16.2\%} within
+of 10\% (base 0\% + 10\,pp), the LP assigns \textbf{50\% weight to
+full-context monitor} and 50\% to no defense. This achieves min
+worst-case ASR of \textbf{18.8\%} within
 the over-refusal budget.
 
-\textbf{LP-optimal mixed defense (test):} 75.2\% full-context, 24.8\%
-none, worst-case ASR \textbf{41.6\%}.
+\textbf{LP-optimal mixed defense (test):} 50\% full-context, 50\%
+none, worst-case ASR \textbf{50.0\%}.
 
 \begin{figure}[h]
 \centering
@@ -355,25 +355,26 @@ detection for affected domains.
 \small
 \begin{tabular}{lcc}
 \toprule
-\textbf{Domain} & \textbf{Benign episodes} & \textbf{Spontaneous canary leakage} \\
+\textbf{Domain} & \textbf{Unique benign} & \textbf{Spontaneous canary leakage} \\
 \midrule
-api\_response\_handler    & 5  & 0/5 (0\%)   \\
-code\_review              & 8  & 0/8 (0\%)   \\
-config\_review            & 7  & 0/7 (0\%)   \\
-\textbf{customer\_support} & \textbf{6} & \textbf{6/6 (100\%)} \\
-database\_query           & 4  & 0/4 (0\%)   \\
-document\_summarization   & 7  & 0/7 (0\%)   \\
-email\_drafting           & 6  & 0/6 (0\%)   \\
-file\_processing          & 6  & 0/6 (0\%)   \\
-log\_analysis             & 8  & 0/8 (0\%)   \\
-research\_assistant       & 3  & 0/3 (0\%)   \\
+api\_response\_handler    & 1  & 0/1 (0\%)   \\
+code\_review              & 1  & 0/1 (0\%)   \\
+config\_review            & 1  & 0/1 (0\%)   \\
+\textbf{customer\_support} & \textbf{1} & \textbf{1/1 (100\%)} \\
+database\_query           & 1  & 0/1 (0\%)   \\
+document\_summarization   & 1  & 0/1 (0\%)   \\
+email\_drafting           & 1  & 0/1 (0\%)   \\
+file\_processing          & 1  & 0/1 (0\%)   \\
+log\_analysis             & 1  & 0/1 (0\%)   \\
+research\_assistant       & 1  & 0/1 (0\%)   \\
 \midrule
-\textbf{Total}            & \textbf{60} & \textbf{6/60 (10\%)} \\
+\textbf{Total}            & \textbf{10} & \textbf{1/10 (10\%)} \\
 \bottomrule
 \end{tabular}
-\caption{Spontaneous canary leakage rate in benign episodes by domain.
-The \texttt{customer\_support} domain leaks the canary in 100\% of
-benign episodes; all other domains show 0\% leakage.}
+\caption{Spontaneous canary leakage rate in unique benign conversations by domain.
+Benign twins are domain-matched (identical within each domain under greedy decoding),
+so counts are over 10 unique conversations, not 60 replicas.
+The \texttt{customer\_support} domain leaks the canary; all other domains show 0\%.}
 \label{tab:leakage}
 \end{table}
 
@@ -429,9 +430,15 @@ internal-notes formatting.
   \item \textbf{Human review of the 20\% sample was not completed}
     due to time constraints.
   \item \textbf{Per-turn monitor is impractical.} While it achieves
-    97.8\% detection (44/45 attacks on dev), its 93.3\% false positive
-    rate (56/60 benign) means it blocks almost all legitimate
+    97.8\% detection (44/45 attacks on dev), its 100\% false positive
+    rate (10/10 unique benign) means it blocks all legitimate
     conversations.
+  \item \textbf{Benign twin design limitation.} Benign twins are
+    domain-matched, not strategy-matched---within each domain the
+    conversation is identical under greedy decoding. The 60 benign
+    episodes collapse to 10 unique conversations. FPR and over-refusal
+    are computed on unique counts ($n{=}10$), giving wide 95\% CIs
+    (FPR: [0\%, 50\%]). Future work: strategy-matched benign twins.
 \end{itemize}
 
 % ────────────────────────────────────────
