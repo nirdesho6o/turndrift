@@ -70,6 +70,13 @@ but generated text quality may differ from a correct implementation.
 - Statistical tests (no steering condition data)
 - Hindi multilingual factor
 
+## Leak Checks (CuratorKIT)
+
+- Schema valid: 120/120
+- Exact duplicates: 50 (benign twins with same domain template — by design)
+- Embedding near-duplicates (cosine, threshold 0.85): structural template similarity (domains disjoint)
+- Domain-level split: 0 domain overlap between dev and test
+
 ## Structure
 
 ```
@@ -80,6 +87,8 @@ judge/              Benign helpfulness labels + kappa report
 evaluations/        EGTA analysis (dev + test)
 figures/            Publication figures
 pilot/              D1/D2 direction vectors + AUROC summary
+curatorkit/         CuratorKIT validation report
+auditkit/           AuditKIT audit record + provenance
 ```
 
 ## Citation

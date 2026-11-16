@@ -95,6 +95,18 @@ def main():
         for f in sorted(pilot_dir.glob("*.npy")):
             uploads.append((str(f), f"pilot/{f.name}"))
 
+    # CuratorKIT report
+    ck_dir = Path("results/curatorkit")
+    if ck_dir.exists():
+        for f in sorted(ck_dir.glob("*.json")):
+            uploads.append((str(f), f"curatorkit/{f.name}"))
+
+    # AuditKIT audit record + provenance
+    ak_dir = Path("results/auditkit")
+    if ak_dir.exists():
+        for f in sorted(ak_dir.glob("*.json")):
+            uploads.append((str(f), f"auditkit/{f.name}"))
+
     # Dataset card
     card = Path("DATASET_CARD.md")
     if card.exists():
@@ -111,6 +123,36 @@ def main():
         )
 
     print(f"\nDone! https://huggingface.co/datasets/{REPO_ID}")
+
+    # --- Model repo for D1/D2 vectors ---
+    model_repo = "nirdesho6o/turndrift-d2-vectors"
+    create_repo(model_repo, repo_type="model", exist_ok=True, private=False)
+
+    model_uploads = []
+    pilot_dir = Path("results/pilot")
+    if pilot_dir.exists():
+        for f in sorted(pilot_dir.glob("*.json")):
+            model_uploads.append((str(f), f.name))
+        for f in sorted(pilot_dir.glob("*.pt")):
+            model_uploads.append((str(f), f.name))
+        for f in sorted(pilot_dir.glob("*.npy")):
+            model_uploads.append((str(f), f.name))
+
+    model_card = Path("D2_MODEL_CARD.md")
+    if model_card.exists():
+        model_uploads.append((str(model_card), "README.md"))
+
+    print(f"\nUploading {len(model_uploads)} files to {model_repo}...")
+    for local, remote in model_uploads:
+        print(f"  {local} → {remote}")
+        api.upload_file(
+            path_or_fileobj=local,
+            path_in_repo=remote,
+            repo_id=model_repo,
+            repo_type="model",
+        )
+
+    print(f"\nDone! https://huggingface.co/nirdesho6o/turndrift-d2-vectors")
 
 
 if __name__ == "__main__":
