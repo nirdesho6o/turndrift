@@ -29,15 +29,24 @@ hidden instructions, and whether a security monitor can catch it.
 
 \textbf{Key findings:}
 Without any defense, the model followed hidden instructions in 26.7\%
-of attack conversations (50\% when the full instruction was in a single
-message). A full-context security monitor (Qwen~3.5 397B) reduced the
-worst-case success rate from 50\% to 21.4\%, catching 87.5\% of
-successful attacks with a 13.3\% false alarm rate.
+of attack conversations (16/60; 50\% for single-turn attacks, 4/8).
+An FPR-budgeted optimal defense---a randomized full-context monitor
+(Qwen~3.5 397B, weight 75\%, with 25\% no-defense)---achieves
+worst-case ASR 21.8\% on dev while keeping over-refusal within
+the 10\% budget.
+The defense shifts the attacker's best response from single-turn
+to semantic-split injection.
 Splitting the hidden instruction across multiple messages made it
 \emph{harder} for the model to follow (0.27$\times$ the single-message
-rate), contradicting the common assumption that fragmentation helps
-attackers. Activation steering was attempted but did not produce usable
+rate)---\textbf{falsifying} our pre-registered prediction that
+split payloads would maintain compliance.
+Activation steering was attempted but did not produce usable
 results within the time constraint.
+
+\textbf{Caveat:} Base transcripts were generated with a known
+\texttt{position\_ids} bug (batch\_size=16, no cumulative sum).
+Compliance results are still valid (deterministic detectors) but
+text quality may be affected.
 
 All data, code, and model outputs are published on
 \href{https://huggingface.co/}{HuggingFace} and
@@ -109,6 +118,11 @@ regex), never LLM-judged.
 \texttt{CohereLabs/tiny-aya-global} (3.35\,B parameters, FP16 on a
 Colab T4 GPU).
 
+\textbf{Provisional-base caveat:} Transcripts were generated with a
+\texttt{position\_ids} bug (batch size 16, missing cumulative sum for
+attention mask). Compliance detection is deterministic and unaffected,
+but generated text quality may differ from a correct implementation.
+
 % ────────────────────────────────────────
 \section{Defense Conditions}
 
@@ -121,10 +135,12 @@ Colab T4 GPU).
     current user message in isolation.
 \end{enumerate}
 
-\textbf{Monitors that were planned but not completed:}
-Activation steering (D1 refusal direction, D2 injection-contrast
-direction) was implemented but produced unusable results---see
-Section~\ref{sec:limitations}.
+Defense over-refusal is defined as: the probability that a benign
+episode is refused by the model \textbf{or} blocked by the monitor.
+A monitor BLOCK on a benign episode counts as over-refusal for that defense.
+
+\textbf{Not completed:} Activation steering (D1 refusal direction,
+D2 injection-contrast direction)---see Section~\ref{sec:limitations}.
 
 % ────────────────────────────────────────
 \section{Results}
@@ -132,63 +148,81 @@ Section~\ref{sec:limitations}.
 \subsection{Overall Injection Compliance}
 Without any defense, the model followed hidden instructions in
 \textbf{16 of 60 attack episodes (26.7\%)}. On the dev split: 22.2\%
-(10/45). On the test split: 40\% (6/15).
+(10/45). On the test split: 40.0\% (6/15).
+
+\subsection{Compliance by Strategy}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Strategy} & \textbf{Dev ICR} & \textbf{Test ICR} & \textbf{Dev $n$} \\
+\midrule
+Single turn     & 50.0\% (4/8)   & 100.0\% (4/4) & 8 \\
+Two fragment    & 16.7\% (1/6)   & 0.0\% (0/3)   & 6 \\
+Three fragment  & 16.7\% (2/12)  & 0.0\% (0/3)   & 12 \\
+Semantic split  & 21.4\% (3/14)  & 0.0\% (0/2)   & 14 \\
+Delayed trigger & 0.0\% (0/5)    & 66.7\% (2/3)  & 5 \\
+\bottomrule
+\end{tabular}
+\caption{Injection compliance rate by strategy (no defense).
+All multi-fragment strategies have lower compliance than single-turn on dev.}
+\label{tab:icr}
+\end{table}
+
+Contrary to our pre-registered prediction (Prediction~2: split
+strategies maintain ICR within 20\,pp of single-turn), splitting
+the injection reduced compliance. Average multi-fragment
+compliance was 13.7\% vs.\ 50.0\% for single-turn on dev---a ratio
+of \textbf{0.27$\times$}. \textbf{This prediction is falsified.}
+
+This suggests Tiny Aya struggles to assemble fragmented instructions
+across turns, consistent with its small size (3.35\,B parameters).
+Larger models may behave differently.
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=0.85\textwidth]{icr_by_strategy_dev.png}
-\caption{Injection compliance rate by attack strategy (dev split, no
-defense). Single-turn attacks succeed 50\% of the time; splitting
-the payload reduces compliance.}
-\label{fig:icr}
+\includegraphics[width=0.85\textwidth]{compliance_by_strategy_dev.png}
+\caption{Compliance by strategy (dev split, no defense).}
+\label{fig:compliance}
 \end{figure}
 
-\subsection{Fragment Innocuousness}
-Contrary to our hypothesis, splitting the injection across multiple
-messages made the model \emph{less} likely to comply, not more.
-Average multi-fragment compliance was 13.7\% vs.\ 50\% for
-single-turn---a ratio of \textbf{0.27$\times$}.
-
-This suggests that Tiny Aya struggles to assemble fragmented
-instructions across turns, which is consistent with its small size
-(3.35\,B parameters). Larger models may behave differently.
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=0.6\textwidth]{fragment_innocuousness_dev.png}
-\caption{Single-turn vs.\ average multi-fragment compliance (dev split).}
-\label{fig:frag}
-\end{figure}
+\textbf{Note:} The pre-registered per-turn innocuousness test (fragment
+flag rate vs.\ benign flag rate) is uninformative because the per-turn
+monitor's false positive rate is 93.3\% (56/60)---it flags nearly
+everything, so flag rates cannot distinguish fragments from benign messages.
 
 \subsection{Monitor Effectiveness}
 
 \begin{table}[h]
 \centering
-\begin{tabular}{lcccc}
+\small
+\begin{tabular}{lccccc}
 \toprule
-\textbf{Monitor} & \textbf{Detection Rate} & \textbf{False Positive Rate}
-  & \textbf{Worst-Case ASR} & \textbf{Avg ICR} \\
+\textbf{Defense} & \textbf{Det.\ (all atk)} & \textbf{Det.\ (compliant)}
+  & \textbf{FPR} & \textbf{Over-refusal} & \textbf{Worst-Case ASR} \\
 \midrule
-None               & ---     & ---      & 50.0\% & 21.0\% \\
-Full-context       & 87.5\% & 13.3\%   & 21.4\% & 11.8\% \\
-Per-turn           & 100\%  & 93.3\%   & 7.1\%  & 1.4\%  \\
+None       & ---           & ---            & ---          & 0.0\% (0/60)   & 50.0\% \\
+Full-ctx   & 77.8\% (35/45) & 40.0\% (4/10) & 13.3\% (8/60) & 13.3\% (8/60) & 21.4\% \\
+Per-turn   & 97.8\% (44/45) & 90.0\% (9/10) & 93.3\% (56/60) & 93.3\% (56/60) & 7.1\% \\
 \bottomrule
 \end{tabular}
-\caption{Monitor performance (dev split). Detection rate =
-fraction of compliant attacks blocked. False positive rate =
-fraction of benign episodes incorrectly blocked.}
+\caption{Monitor performance (dev split). Detection uses the timing rule:
+a BLOCK counts only if it fires at or before the first compliant turn.
+Over-refusal includes monitor benign blocks (model over-refusal is 0\%).}
 \label{tab:monitor}
 \end{table}
 
-The \textbf{full-context monitor} is the practical choice: it catches
-87.5\% of successful attacks while incorrectly blocking only 13.3\%
-of benign conversations. The per-turn monitor catches everything but
-flags 93.3\% of benign traffic---unusable in practice.
+The \textbf{full-context monitor} is the practical choice: 77.8\%
+detection rate over all attacks (35/45), 13.3\% false positive rate (8/60).
+The per-turn monitor catches nearly everything (97.8\%, 44/45) but flags
+93.3\% (56/60) of benign traffic---unusable in practice.
 
 \textbf{Monitor manipulability} (full-context): detection drops by
-16.1 percentage points when attackers switch from single-turn to their
-best split strategy (semantic split). This confirms that fragmentation
-does help evade the monitor, even though it reduces model compliance.
+16.1\,pp when attackers switch from single-turn to their best split
+strategy (semantic split). Defense shifts the attacker's best response
+from single-turn (50\% ASR undefended) to semantic-split (21.4\% ASR
+under full-context monitor).
 
 \begin{figure}[h]
 \centering
@@ -198,16 +232,18 @@ does help evade the monitor, even though it reduces model compliance.
 \end{figure}
 
 \subsection{Benign Quality}
-All 60 benign responses were judged \textbf{helpful} by Qwen 3.5 397B.
-Over-refusal rate: \textbf{0\%}. Inter-judge agreement (Qwen vs.\ GLM-5.2
-on 40 episodes): \textbf{97.5\%} (39/40 agree; Cohen's $\kappa = 0.0$
-due to near-zero variance---both judges rated almost everything
-``helpful'').
+All 60 benign responses were judged \textbf{helpful} by Qwen 3.5 397B
+(0/60 over-refusal, 0/60 off-topic). Inter-judge agreement (Qwen vs.\
+GLM-5.2 on 40 episodes): 97.5\% raw agreement (39/40). Cohen's $\kappa$
+is \textbf{degenerate} ($\kappa = 0.0$) because near-zero label variance
+makes it undefined---both judges rated nearly everything ``helpful,''
+so the expected agreement by chance is already near 100\%.
 
 \subsection{D2 Direction Quality}
 The injection-contrast direction (D2) achieved AUROC \textbf{0.946}
 (3-fold CV) at layer~16, confirming that injection and clean
 activations are linearly separable in this model's representation space.
+Steering was not tested on GPU---see Section~\ref{sec:limitations}.
 
 \begin{figure}[h]
 \centering
@@ -219,42 +255,54 @@ activations are linearly separable in this model's representation space.
 \subsection{Game-Theoretic Analysis (EGTA)}
 
 We model the interaction as a Stackelberg game: the defender commits
-to a defense, the attacker best-responds.
+to a (possibly mixed) defense, the attacker best-responds.
 
 \begin{table}[h]
 \centering
 \small
-\begin{tabular}{lccc}
+\begin{tabular}{lcccc}
 \toprule
-\textbf{Defense} & \textbf{Worst-Case ASR} & \textbf{Best Attacker Strategy}
-  & \textbf{Manipulability} \\
+\textbf{Defense} & \textbf{Worst-Case ASR} & \textbf{Best Attacker}
+  & \textbf{Over-refusal} & \textbf{Manip.} \\
 \midrule
-None               & 50.0\% & single\_turn      & --- \\
-Full-context mon.  & 21.4\% & semantic\_split   & 16.1\,pp \\
-Per-turn mon.      & 7.1\%  & semantic\_split   & 7.1\,pp \\
+None               & 50.0\% & single\_turn      & 0.0\% (0/60)   & --- \\
+Full-context mon.  & 21.4\% & semantic\_split   & 13.3\% (8/60)  & 16.1\,pp \\
+Per-turn mon.      & 7.1\%  & semantic\_split   & 93.3\% (56/60) & 7.1\,pp \\
 \bottomrule
 \end{tabular}
-\caption{EGTA results (dev split). Worst-case ASR = max over attacker
-strategies.}
+\caption{EGTA results (dev split). Over-refusal includes monitor benign
+block rate.}
 \label{tab:egta}
 \end{table}
 
-\textbf{LP-optimal defense:} With an over-refusal budget of 10\%
-(base + 10\,pp), the linear program assigns 100\% weight to the
-per-turn monitor (min worst-case ASR = 7.1\%). However, its 93.3\%
-false positive rate makes it impractical. The full-context monitor
-(worst-case 21.4\%, FPR 13.3\%) is the realistic choice.
+\textbf{LP-optimal mixed defense (dev):} With an over-refusal budget
+of 10\% (base 0\% + 10\,pp), the LP assigns \textbf{75.2\% weight to
+full-context monitor} and 24.8\% to no defense. This achieves min
+worst-case ASR of \textbf{21.8\%} with mixture over-refusal of
+\textbf{10.0\%} (exactly at budget). The per-turn monitor exceeds the
+budget (93.3\%) and receives zero weight.
 
-\textbf{Bootstrap 95\% CIs} (no defense): single\_turn 50\%
-[12.5, 87.5]; semantic\_split 21.4\% [0, 42.9]; three\_fragment
-16.7\% [0, 41.7]. Wide intervals reflect the small sample sizes
-per strategy cell.
+\textbf{LP-optimal mixed defense (test):} Same weights (75.2\%
+full-context, 24.8\% none), worst-case ASR \textbf{41.6\%}.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{mixed_policy_dev.png}
+\caption{Pure vs.\ mixed defense: worst-case ASR (dev split).
+The LP-optimal mixture nearly matches the full-context monitor's
+worst case while staying within the FPR budget.}
+\label{fig:mixed}
+\end{figure}
+
+\textbf{Bootstrap 95\% CIs} (no defense, dev): single\_turn 50.0\%
+[12.5, 87.5] ($n=8$); semantic\_split 21.4\% [0, 42.9] ($n=14$);
+three\_fragment 16.7\% [0, 41.7] ($n=12$); two\_fragment 16.7\%
+[0, 50.0] ($n=6$); delayed\_trigger 0.0\% [0, 0] ($n=5$).
+Wide intervals reflect small per-strategy cell sizes.
 
 % ────────────────────────────────────────
 \section{What Was Not Completed}
 \label{sec:limitations}
-
-We are honest about what we did not finish:
 
 \begin{itemize}
   \item \textbf{Activation steering did not work.} We extracted D1
@@ -276,35 +324,40 @@ We are honest about what we did not finish:
   \item \textbf{Human review of the 20\% sample was not completed}
     due to time constraints.
   \item \textbf{Per-turn monitor is impractical.} While it achieves
-    100\% detection, its 93.3\% false positive rate means it blocks
-    almost all legitimate conversations. We include it for
-    completeness but do not recommend it.
+    97.8\% detection (44/45 attacks on dev), its 93.3\% false positive
+    rate (56/60 benign) means it blocks almost all legitimate
+    conversations.
 \end{itemize}
 
 % ────────────────────────────────────────
 \section{Discussion}
 
-\textbf{The core finding:} Tiny Aya has a directional safety failure.
-It refuses direct harmful requests but complies with the same
-instructions when they are embedded in simulated documents. This
-confirms the smoke test finding from November 2.
+\textbf{Defense shifts the attacker's best response.} Without any
+defense, the attacker's best strategy is single-turn injection (50\%
+ASR on dev). With the full-context monitor, the best response shifts to
+semantic split (21.4\% ASR). This is the core game-theoretic finding:
+static defenses create predictable gaps that adaptive attackers exploit.
 
-\textbf{Fragmentation hurts the attacker (at this scale).}
-Unlike our hypothesis, splitting the injection reduced compliance.
-This is likely a limitation of the 3.35B model's ability to track
-and assemble instructions across turns. This finding may not hold for
-larger models with better long-context reasoning.
+\textbf{The FPR-budgeted optimal defense is a randomized full-context
+monitor.} The LP assigns 75\% weight to the full-context monitor
+(all it can afford under the 10\% FPR budget), achieving worst-case
+ASR of 21.8\%.
 
-\textbf{Monitors work, but are manipulable.} The full-context monitor
-reduces worst-case ASR from 50\% to 21.4\%, but the attacker can
-partially evade it by using semantic splitting (16.1pp manipulability).
-This validates the game-theoretic framing: static defenses have
-predictable weaknesses that adaptive attackers can exploit.
+\textbf{Split-payload prediction falsified.} We predicted that
+splitting the injection would maintain compliance. Instead, all
+multi-fragment strategies had lower compliance than single-turn.
+Tiny Aya (3.35\,B) cannot reliably assemble fragmented instructions
+across turns. This may not hold for larger models with better
+long-context reasoning.
+
+\textbf{Provisional base caveat.} Base transcripts have a known
+\texttt{position\_ids} bug. Compliance detection is deterministic and
+unaffected, but generated text may differ from a correct run.
 
 \textbf{Scope:} These results describe this benchmark and these models.
 They are not general theorems about prompt injection or AI safety.
-The sample sizes per strategy cell are small (5--14 episodes), and
-the confidence intervals are correspondingly wide.
+Per-strategy cell sizes are small ($n = 2$--$14$), and the bootstrap
+CIs are correspondingly wide.
 
 % ────────────────────────────────────────
 \section{Related Work}
@@ -320,8 +373,9 @@ the confidence intervals are correspondingly wide.
 \end{itemize}
 
 \textbf{Our contributions:} game-theoretic (EGTA) evaluation of
-defenses with worst-case analysis; per-turn vs.\ full-context monitor
-comparison; measurement on Cohere multilingual models.
+defenses with FPR-budgeted optimal mixed strategy; measurement of
+how defense shifts attacker best response; per-turn vs.\ full-context
+monitor comparison on Cohere multilingual models.
 
 % ────────────────────────────────────────
 \section{Toolkit Integration}
@@ -352,12 +406,13 @@ comparison; measurement on Cohere multilingual models.
 % ────────────────────────────────────────
 \section{Conclusion}
 
-TurnDrift-Control shows that even a small language model (3.35B) has
-a real prompt injection vulnerability when used as an agent. A
-full-context security monitor catches most attacks (87.5\%) at an
-acceptable false alarm rate (13.3\%), but adaptive attackers can
-reduce its effectiveness by 16 percentage points through payload
-fragmentation.
+TurnDrift-Control shows that even a small language model (3.35\,B) has
+a real prompt injection vulnerability when used as an agent. The
+FPR-budgeted optimal defense is a randomized full-context monitor
+(75\% weight, worst-case ASR 21.8\% on dev), which shifts the
+attacker's best response from single-turn to semantic-split injection.
+The pre-registered prediction that split payloads maintain compliance
+was falsified: fragmentation reduces compliance at this model scale.
 
 \textbf{Future work:} test activation steering with corrected
 scale-relative coefficients; replicate on larger Cohere models

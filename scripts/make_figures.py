@@ -175,42 +175,99 @@ def fig_d2_auroc(results_dir: Path, fig_dir: Path):
     print(f"  Saved {out}")
 
 
-def fig_fragment_innocuousness(egta: dict, fig_dir: Path):
-    """Single vs multi-fragment ICR comparison."""
+def fig_compliance_by_strategy(egta: dict, fig_dir: Path):
+    """All strategies compliance comparison (renamed from fragment innocuousness)."""
     matrix = egta["payoff_matrix"]
     if "none" not in matrix:
         return
 
     none_cells = matrix["none"]
-    single = none_cells.get("single_turn", {}).get("asr", 0)
-    multi_strats = ["two_fragment", "three_fragment", "semantic_split", "delayed_trigger"]
-    multi_asrs = [none_cells.get(s, {}).get("asr", 0) for s in multi_strats]
-    avg_multi = np.mean(multi_asrs)
+    strats = [s for s in STRATEGY_ORDER if s in none_cells]
+    asrs = [none_cells[s]["asr"] for s in strats]
+    ns = [none_cells[s]["n"] for s in strats]
+    labels = [STRATEGY_LABELS.get(s, s) for s in strats]
 
-    fig, ax = plt.subplots(figsize=(6, 4))
-    categories = ["Single turn", "Avg multi-\nfragment"]
-    values = [single, avg_multi]
-    colors_bar = ["#D65F5F", "#4878CF"]
-    bars = ax.bar(categories, values, color=colors_bar, edgecolor="white", width=0.5)
+    single_asr = none_cells.get("single_turn", {}).get("asr", 0)
+    multi_strats = [s for s in strats if s != "single_turn"]
+    avg_multi = np.mean([none_cells[s]["asr"] for s in multi_strats]) if multi_strats else 0
 
-    for bar, val in zip(bars, values):
+    colors_bar = ["#D65F5F" if s == "single_turn" else "#4878CF" for s in strats]
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    bars = ax.bar(range(len(strats)), asrs, color=colors_bar, edgecolor="white", width=0.6)
+
+    for bar, asr, n in zip(bars, asrs, ns):
         ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 1,
-                f"{val:.1f}%", ha="center", va="bottom", fontsize=11, fontweight="bold")
+                f"{asr:.0f}%\n(n={n})", ha="center", va="bottom", fontsize=9)
 
+    ax.set_xticks(range(len(strats)))
+    ax.set_xticklabels(labels, fontsize=9)
     ax.set_ylabel("Injection Compliance Rate (%)")
-    ax.set_title(f"Fragment Innocuousness ({egta['split']} split)")
-    ax.set_ylim(0, max(values) * 1.4 if max(values) > 0 else 100)
+    ax.set_title(f"Compliance by Strategy — No Defense ({egta['split']} split)")
+    ax.set_ylim(0, max(asrs) * 1.4 if max(asrs) > 0 else 100)
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
 
-    if single > 0:
-        ratio = avg_multi / single
-        ax.text(0.95, 0.95, f"Ratio: {ratio:.2f}x",
+    if single_asr > 0:
+        ratio = avg_multi / single_asr
+        ax.text(0.95, 0.95, f"Multi-frag avg: {avg_multi:.1f}%\nRatio: {ratio:.2f}×",
                 transform=ax.transAxes, ha="right", va="top",
-                fontsize=10, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow"))
+                fontsize=9, bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow"))
 
     fig.tight_layout()
-    out = fig_dir / f"fragment_innocuousness_{egta['split']}.png"
+    out = fig_dir / f"compliance_by_strategy_{egta['split']}.png"
+    fig.savefig(out, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved {out}")
+
+
+def fig_mixed_policy(egta: dict, fig_dir: Path):
+    """Optimal mixed policy vs pure defenses: worst-case ASR comparison."""
+    per_defense = egta.get("per_defense", {})
+    lp = egta.get("mixed_strategy_lp", {})
+    if not per_defense or not lp.get("feasible"):
+        print("  Skipping mixed policy figure (no LP result)")
+        return
+
+    defenders = list(per_defense.keys())
+    wc_asrs = [per_defense[d]["worst_case_asr"] for d in defenders]
+    labels = [DEFENSE_LABELS.get(d, d) for d in defenders]
+
+    # Add the optimal mixture
+    labels.append(f"LP optimal\nmixture")
+    wc_asrs.append(lp["value"])
+
+    colors_bar = [COLORS.get(d, "#999999") for d in defenders] + ["#2E8B57"]
+
+    fig, ax = plt.subplots(figsize=(8, 4.5))
+    x = range(len(labels))
+    bars = ax.bar(x, wc_asrs, color=colors_bar, edgecolor="white", width=0.6)
+
+    for bar, asr in zip(bars, wc_asrs):
+        ax.text(bar.get_x() + bar.get_width()/2, bar.get_height() + 0.8,
+                f"{asr:.1f}%", ha="center", va="bottom", fontsize=10, fontweight="bold")
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=9)
+    ax.set_ylabel("Worst-Case ASR (%)")
+    ax.set_title(f"Pure vs Mixed Defense — Worst-Case ASR ({egta['split']} split)")
+    ax.set_ylim(0, max(wc_asrs) * 1.3 if max(wc_asrs) > 0 else 100)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+
+    # Annotate mixture weights and budget
+    weights = lp.get("strategy_weights", {})
+    or_pct = lp.get("mixture_over_refusal", 0)
+    budget = lp.get("budget", egta.get("budget", 10))
+    weight_str = ", ".join(f"{DEFENSE_LABELS.get(d,d)}: {w:.0%}" for d, w in
+                           sorted(weights.items(), key=lambda x: -x[1]))
+    ax.text(0.02, 0.98,
+            f"Weights: {weight_str}\nOver-refusal: {or_pct:.1f}% (budget: {budget:.0f}%)",
+            transform=ax.transAxes, ha="left", va="top", fontsize=8,
+            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.9))
+
+    fig.tight_layout()
+    out = fig_dir / f"mixed_policy_{egta['split']}.png"
     fig.savefig(out, dpi=150, bbox_inches="tight")
     plt.close(fig)
     print(f"  Saved {out}")
@@ -236,7 +293,8 @@ def main():
     fig_icr_by_strategy(egta, fig_dir)
     fig_defense_comparison(egta, fig_dir)
     fig_d2_auroc(results_dir, fig_dir)
-    fig_fragment_innocuousness(egta, fig_dir)
+    fig_compliance_by_strategy(egta, fig_dir)
+    fig_mixed_policy(egta, fig_dir)
 
     print(f"\nAll figures saved to {fig_dir}/")
 
