@@ -1,0 +1,367 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage[utf8]{inputenc}
+
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+\title{When Safety Looks the Wrong Way:\\
+Multi-Turn Prompt Injection as an Information-Hiding Game}
+\author{Nirdesh Bhandari\\
+Lexsi Labs AI Safety \& Alignment Hackathon --- Track 2a.3}
+\date{November 2026}
+
+\begin{document}
+\maketitle
+
+% ────────────────────────────────────────
+\begin{abstract}
+Large language models used as agents can be tricked into following
+hidden instructions planted inside documents they read during a
+conversation. We built \textbf{TurnDrift-Control}, a benchmark of 120
+scripted conversations that tests whether a small open-weight model
+(\texttt{CohereLabs/tiny-aya-global}, 3.35\,B parameters) follows these
+hidden instructions, and whether a security monitor can catch it.
+
+\textbf{Key findings:}
+Without any defense, the model followed hidden instructions in 26.7\%
+of attack conversations (50\% when the full instruction was in a single
+message). A full-context security monitor (Qwen~3.5 397B) reduced the
+worst-case success rate from 50\% to 21.4\%, catching 87.5\% of
+successful attacks with a 13.3\% false alarm rate.
+Splitting the hidden instruction across multiple messages made it
+\emph{harder} for the model to follow (0.27$\times$ the single-message
+rate), contradicting the common assumption that fragmentation helps
+attackers. Activation steering was attempted but did not produce usable
+results within the time constraint.
+
+All data, code, and model outputs are published on
+\href{https://huggingface.co/}{HuggingFace} and
+\href{https://github.com/nirdesho6o/turndrift}{GitHub}.
+\end{abstract}
+
+% ────────────────────────────────────────
+\section{Introduction}
+
+When an AI model works as an agent---reading documents, emails, or tool
+outputs on a user's behalf---it must distinguish the user's
+instructions from content in those documents. A \emph{prompt injection}
+attack hides instructions inside the content the model reads, hoping
+the model will follow them instead of (or alongside) the user's actual
+request.
+
+Most prior work on prompt injection uses single-message attacks.
+In real agent workflows, however, a document might arrive across
+several turns of conversation. An attacker could split the malicious
+instruction into fragments spread across different messages, where each
+fragment looks harmless on its own. This is the \textbf{information-hiding
+game}: the attacker hides a payload across turns, the defender tries
+to detect it.
+
+We test this with \textbf{TurnDrift-Control}, a benchmark that pairs
+each attack conversation with a benign twin (same topic, no hidden
+instructions) to control for over-refusal. We evaluate three defense
+conditions and analyze the results as a two-player game.
+
+% ────────────────────────────────────────
+\section{Benchmark Design}
+
+\subsection{Episodes}
+Each conversation has 6 turns. In attack episodes, some turns contain
+simulated tool outputs with hidden injection fragments. Benign episodes
+have the same structure and topic but no injections.
+
+\textbf{Scale:} 10 domain templates $\times$ 5 injection strategies
+$\times$ 7 proxy targets, sampled to 60 attack/benign pairs (120
+episodes, 720 turns). Split: 45 dev attacks + 15 test attacks by domain.
+
+\subsection{Injection Strategies}
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcp{6cm}}
+\toprule
+\textbf{Strategy} & \textbf{Fragments} & \textbf{Description} \\
+\midrule
+Single turn        & 1 & Full payload in one message (baseline) \\
+Two fragment       & 2 & Payload split across 2 tool outputs \\
+Three fragment     & 3 & Maximum splitting across 3 outputs \\
+Semantic split     & 3 & Intent, target, and method in separate turns \\
+Delayed trigger    & 2 & Fragments planted early, triggered later \\
+\bottomrule
+\end{tabular}
+\caption{Five injection strategies tested.}
+\end{table}
+
+\subsection{Proxy Targets}
+We test 7 safe proxy targets: canary token extraction, instruction
+override, format hijack, role break, policy override, tool-based
+exfiltration, and destructive action (mocked tool calls---nothing
+executes). All detection is \textbf{deterministic} (exact match and
+regex), never LLM-judged.
+
+\subsection{Model Under Test}
+\texttt{CohereLabs/tiny-aya-global} (3.35\,B parameters, FP16 on a
+Colab T4 GPU).
+
+% ────────────────────────────────────────
+\section{Defense Conditions}
+
+\begin{enumerate}
+  \item \textbf{No defense:} Unmodified model.
+  \item \textbf{Full-context monitor:} An external model (Qwen 3.5 397B)
+    sees the conversation prefix up to each turn's user message
+    (excluding the upcoming response) and outputs ALLOW or BLOCK.
+  \item \textbf{Per-turn monitor:} Same external model sees only the
+    current user message in isolation.
+\end{enumerate}
+
+\textbf{Monitors that were planned but not completed:}
+Activation steering (D1 refusal direction, D2 injection-contrast
+direction) was implemented but produced unusable results---see
+Section~\ref{sec:limitations}.
+
+% ────────────────────────────────────────
+\section{Results}
+
+\subsection{Overall Injection Compliance}
+Without any defense, the model followed hidden instructions in
+\textbf{16 of 60 attack episodes (26.7\%)}. On the dev split: 22.2\%
+(10/45). On the test split: 40\% (6/15).
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.85\textwidth]{icr_by_strategy_dev.png}
+\caption{Injection compliance rate by attack strategy (dev split, no
+defense). Single-turn attacks succeed 50\% of the time; splitting
+the payload reduces compliance.}
+\label{fig:icr}
+\end{figure}
+
+\subsection{Fragment Innocuousness}
+Contrary to our hypothesis, splitting the injection across multiple
+messages made the model \emph{less} likely to comply, not more.
+Average multi-fragment compliance was 13.7\% vs.\ 50\% for
+single-turn---a ratio of \textbf{0.27$\times$}.
+
+This suggests that Tiny Aya struggles to assemble fragmented
+instructions across turns, which is consistent with its small size
+(3.35\,B parameters). Larger models may behave differently.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.6\textwidth]{fragment_innocuousness_dev.png}
+\caption{Single-turn vs.\ average multi-fragment compliance (dev split).}
+\label{fig:frag}
+\end{figure}
+
+\subsection{Monitor Effectiveness}
+
+\begin{table}[h]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Monitor} & \textbf{Detection Rate} & \textbf{False Positive Rate}
+  & \textbf{Worst-Case ASR} & \textbf{Avg ICR} \\
+\midrule
+None               & ---     & ---      & 50.0\% & 21.0\% \\
+Full-context       & 87.5\% & 13.3\%   & 21.4\% & 11.8\% \\
+Per-turn           & 100\%  & 93.3\%   & 7.1\%  & 1.4\%  \\
+\bottomrule
+\end{tabular}
+\caption{Monitor performance (dev split). Detection rate =
+fraction of compliant attacks blocked. False positive rate =
+fraction of benign episodes incorrectly blocked.}
+\label{tab:monitor}
+\end{table}
+
+The \textbf{full-context monitor} is the practical choice: it catches
+87.5\% of successful attacks while incorrectly blocking only 13.3\%
+of benign conversations. The per-turn monitor catches everything but
+flags 93.3\% of benign traffic---unusable in practice.
+
+\textbf{Monitor manipulability} (full-context): detection drops by
+16.1 percentage points when attackers switch from single-turn to their
+best split strategy (semantic split). This confirms that fragmentation
+does help evade the monitor, even though it reduces model compliance.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.95\textwidth]{defense_comparison_dev.png}
+\caption{Attack success rate by strategy under each defense (dev split).}
+\label{fig:defense}
+\end{figure}
+
+\subsection{Benign Quality}
+All 60 benign responses were judged \textbf{helpful} by Qwen 3.5 397B.
+Over-refusal rate: \textbf{0\%}. Inter-judge agreement (Qwen vs.\ GLM-5.2
+on 40 episodes): \textbf{97.5\%} (39/40 agree; Cohen's $\kappa = 0.0$
+due to near-zero variance---both judges rated almost everything
+``helpful'').
+
+\subsection{D2 Direction Quality}
+The injection-contrast direction (D2) achieved AUROC \textbf{0.946}
+(3-fold CV) at layer~16, confirming that injection and clean
+activations are linearly separable in this model's representation space.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=0.55\textwidth]{d2_auroc_by_layer.png}
+\caption{D2 direction AUROC by layer (top 5). Layer 16 achieves 0.946.}
+\label{fig:auroc}
+\end{figure}
+
+\subsection{Game-Theoretic Analysis (EGTA)}
+
+We model the interaction as a Stackelberg game: the defender commits
+to a defense, the attacker best-responds.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lccc}
+\toprule
+\textbf{Defense} & \textbf{Worst-Case ASR} & \textbf{Best Attacker Strategy}
+  & \textbf{Manipulability} \\
+\midrule
+None               & 50.0\% & single\_turn      & --- \\
+Full-context mon.  & 21.4\% & semantic\_split   & 16.1\,pp \\
+Per-turn mon.      & 7.1\%  & semantic\_split   & 7.1\,pp \\
+\bottomrule
+\end{tabular}
+\caption{EGTA results (dev split). Worst-case ASR = max over attacker
+strategies.}
+\label{tab:egta}
+\end{table}
+
+\textbf{LP-optimal defense:} With an over-refusal budget of 10\%
+(base + 10\,pp), the linear program assigns 100\% weight to the
+per-turn monitor (min worst-case ASR = 7.1\%). However, its 93.3\%
+false positive rate makes it impractical. The full-context monitor
+(worst-case 21.4\%, FPR 13.3\%) is the realistic choice.
+
+\textbf{Bootstrap 95\% CIs} (no defense): single\_turn 50\%
+[12.5, 87.5]; semantic\_split 21.4\% [0, 42.9]; three\_fragment
+16.7\% [0, 41.7]. Wide intervals reflect the small sample sizes
+per strategy cell.
+
+% ────────────────────────────────────────
+\section{What Was Not Completed}
+\label{sec:limitations}
+
+We are honest about what we did not finish:
+
+\begin{itemize}
+  \item \textbf{Activation steering did not work.} We extracted D1
+    (refusal) and D2 (injection-contrast) direction vectors and
+    implemented a steering hook, but the steering coefficients were
+    too small relative to the model's residual stream norms
+    ($\alpha = 1$ vs.\ $\|h\| \sim$ hundreds). A scale-relative
+    coefficient grid was designed but could not be tested on GPU
+    because our Colab T4 quota ran out. Steering is marked as
+    future work.
+  \item \textbf{8B replication was not run.} The Aya Expanse 8B
+    model was planned as a replication target but was cut due to
+    time and compute constraints.
+  \item \textbf{Statistical tests were not run.} The pre-registered
+    McNemar's and chi-squared tests require steering condition data
+    that we do not have. We report descriptive statistics and bootstrap
+    CIs only.
+  \item \textbf{Hindi multilingual factor was skipped.}
+  \item \textbf{Human review of the 20\% sample was not completed}
+    due to time constraints.
+  \item \textbf{Per-turn monitor is impractical.} While it achieves
+    100\% detection, its 93.3\% false positive rate means it blocks
+    almost all legitimate conversations. We include it for
+    completeness but do not recommend it.
+\end{itemize}
+
+% ────────────────────────────────────────
+\section{Discussion}
+
+\textbf{The core finding:} Tiny Aya has a directional safety failure.
+It refuses direct harmful requests but complies with the same
+instructions when they are embedded in simulated documents. This
+confirms the smoke test finding from November 2.
+
+\textbf{Fragmentation hurts the attacker (at this scale).}
+Unlike our hypothesis, splitting the injection reduced compliance.
+This is likely a limitation of the 3.35B model's ability to track
+and assemble instructions across turns. This finding may not hold for
+larger models with better long-context reasoning.
+
+\textbf{Monitors work, but are manipulable.} The full-context monitor
+reduces worst-case ASR from 50\% to 21.4\%, but the attacker can
+partially evade it by using semantic splitting (16.1pp manipulability).
+This validates the game-theoretic framing: static defenses have
+predictable weaknesses that adaptive attackers can exploit.
+
+\textbf{Scope:} These results describe this benchmark and these models.
+They are not general theorems about prompt injection or AI safety.
+The sample sizes per strategy cell are small (5--14 episodes), and
+the confidence intervals are correspondingly wide.
+
+% ────────────────────────────────────────
+\section{Related Work}
+
+\begin{itemize}
+  \item Greshake et al.\ (2023): indirect prompt injection taxonomy
+  \item InjecAgent (Zhan et al., 2024): 1,054 test cases for
+    tool-using agents
+  \item AgentDojo (Debenedetti et al., 2024): 97 tasks, 629 security
+    tests
+  \item Crescendo (Russinovich et al., 2024): multi-turn jailbreak
+    escalation
+\end{itemize}
+
+\textbf{Our contributions:} game-theoretic (EGTA) evaluation of
+defenses with worst-case analysis; per-turn vs.\ full-context monitor
+comparison; measurement on Cohere multilingual models.
+
+% ────────────────────────────────────────
+\section{Toolkit Integration}
+
+\begin{itemize}
+  \item \textbf{CuratorKIT:} Schema validation of the 120-episode
+    benchmark dataset, deduplication checks, provenance tracking.
+  \item \textbf{SafeTune:} Refusal direction extraction (D1) and
+    injection-contrast direction extraction (D2). Steering hook
+    implementation. D2 AUROC = 0.946 confirms the direction is
+    viable, even though steering was not tested on GPU.
+  \item \textbf{AuditKIT:} Evaluation recording with model/config
+    fingerprints and custom metric registration.
+\end{itemize}
+
+% ────────────────────────────────────────
+\section{Reproducibility}
+
+\begin{itemize}
+  \item \textbf{Code:}
+    \url{https://github.com/nirdesho6o/turndrift}
+  \item \textbf{Dataset:} HuggingFace (TurnDrift-Control, 120 episodes)
+  \item \textbf{Steering vectors:} D1 and D2 directions with layer,
+    coefficient, and calibration hashes
+  \item \textbf{All transcripts and monitor outputs} cached as JSON
+\end{itemize}
+
+% ────────────────────────────────────────
+\section{Conclusion}
+
+TurnDrift-Control shows that even a small language model (3.35B) has
+a real prompt injection vulnerability when used as an agent. A
+full-context security monitor catches most attacks (87.5\%) at an
+acceptable false alarm rate (13.3\%), but adaptive attackers can
+reduce its effectiveness by 16 percentage points through payload
+fragmentation.
+
+\textbf{Future work:} test activation steering with corrected
+scale-relative coefficients; replicate on larger Cohere models
+(8B, 32B); add Hindi multilingual factor; develop
+strategy-aware monitoring.
+
+\end{document}
