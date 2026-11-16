@@ -163,6 +163,8 @@ A defense with over-refusal exceeding the budget is not deployment-viable. If al
 
 **Clarification (2026-11-15, before any steering run):** If no coefficient meets the over-refusal budget for a given direction, `steering_config.json` records `"viable": false` for that direction. The test-split steering run is skipped, and EGTA treats that direction as a defense that failed the over-refusal budget (defender payoff = −budget, as if over-refusal equals the budget ceiling). The random control uses the same layer and coefficient as the selected D2 config; if D2 is non-viable, it falls back to D1's selected config.
 
+**Clarification (2026-11-16, post-submission):** Steering conditions 4--6 were not completed. D1/D2 directions were extracted (D2 AUROC=0.946 at layer 16) but the scale-relative coefficient grid could not be tested on GPU due to T4 quota exhaustion. EGTA results use only conditions 1--3 (none, full-context monitor, per-turn monitor).
+
 **Clarification (2026-11-15, before any steered result is seen):** Coefficient grid is scale-relative: [0.5, 1, 2, 4] × mean‖h‖ at the target layer, where ‖h‖ is the L2 norm of the last-token residual stream measured on 4 dev prompts. This replaces the fixed grid [1, 4, 10, 25] which produced steering vectors orders of magnitude smaller than the residual stream. Tuning set is the A1 pilot episode IDs (read from results/pilot/transcripts/), not a "pilot" split label in the dataset.
 
 ---
