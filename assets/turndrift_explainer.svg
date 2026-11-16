@@ -1,0 +1,292 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" width="800" height="320">
+  <defs>
+    <style>
+      /* Scene transitions */
+      .scene { opacity: 0; }
+      .scene1 { animation: show 15s infinite; animation-delay: 0s; }
+      .scene2 { animation: show 15s infinite; animation-delay: 3s; }
+      .scene3 { animation: show 15s infinite; animation-delay: 6s; }
+      .scene4 { animation: show 15s infinite; animation-delay: 9s; }
+      .scene5 { animation: show 15s infinite; animation-delay: 12s; }
+      @keyframes show {
+        0%, 1% { opacity: 0; }
+        3%, 18% { opacity: 1; }
+        22%, 100% { opacity: 0; }
+      }
+      /* Robot idle bounce */
+      .robot-bounce { animation: bounce 1.5s ease-in-out infinite; }
+      @keyframes bounce { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+      /* Sneaky note wiggle */
+      .note-wiggle { animation: wiggle 0.6s ease-in-out infinite; }
+      @keyframes wiggle { 0%,100% { transform: rotate(0deg); } 25% { transform: rotate(3deg); } 75% { transform: rotate(-3deg); } }
+      /* Guard magnifying glass pulse */
+      .guard-pulse { animation: pulse 1s ease-in-out infinite; }
+      @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.08); } }
+      /* Checkmark pop */
+      .check-pop { animation: pop 0.8s ease-in-out infinite; }
+      @keyframes pop { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 1; transform: scale(1.2); } }
+      /* X mark shake */
+      .x-shake { animation: shake 0.5s ease-in-out infinite; }
+      @keyframes shake { 0%,100% { transform: translateX(0); } 25% { transform: translateX(-3px); } 75% { transform: translateX(3px); } }
+      /* Torn pieces drift */
+      .piece1 { animation: drift1 2s ease-in-out infinite; }
+      .piece2 { animation: drift2 2s ease-in-out infinite; }
+      .piece3 { animation: drift3 2s ease-in-out infinite; }
+      @keyframes drift1 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-3px,2px) rotate(-5deg); } }
+      @keyframes drift2 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(2px,-3px) rotate(4deg); } }
+      @keyframes drift3 { 0%,100% { transform: translate(0,0) rotate(0deg); } 50% { transform: translate(-2px,-2px) rotate(-3deg); } }
+      /* Sampling flash */
+      .sample-flash { animation: flash 1.2s ease-in-out infinite; }
+      @keyframes flash { 0%,40%,100% { opacity: 0.3; } 20% { opacity: 1; } }
+      /* Text */
+      text { font-family: -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif; }
+      .caption { font-size: 16px; fill: #24292f; font-weight: 600; text-anchor: middle; }
+      /* Background for light/dark */
+      .bg { fill: #ffffff; }
+      @media (prefers-color-scheme: dark) {
+        .bg { fill: #0d1117; }
+        .caption { fill: #e6edf3; }
+        .paper { fill: #21262d; stroke: #30363d; }
+        .robot-body { fill: #58a6ff; }
+        .robot-face { fill: #0d1117; }
+        .note-bad { fill: #f85149; }
+        .note-text { fill: #0d1117; }
+        .guard-body { fill: #3fb950; }
+        .guard-hat { fill: #1f6feb; }
+        .glass-rim { stroke: #e6edf3; }
+        .glass-fill { fill: #0d1117; opacity: 0.3; }
+        .check { fill: #3fb950; }
+        .xmark { fill: #f85149; }
+        .arrow { fill: #8b949e; }
+      }
+      /* Light mode defaults */
+      .paper { fill: #f6f8fa; stroke: #d0d7de; stroke-width: 1.5; }
+      .robot-body { fill: #0969da; }
+      .robot-face { fill: #ffffff; }
+      .note-bad { fill: #cf222e; }
+      .note-text { fill: #ffffff; }
+      .guard-body { fill: #1a7f37; }
+      .guard-hat { fill: #0550ae; }
+      .glass-rim { stroke: #24292f; stroke-width: 2.5; fill: none; }
+      .glass-fill { fill: #ffffff; opacity: 0.3; }
+      .check { fill: #1a7f37; }
+      .xmark { fill: #cf222e; }
+      .arrow { fill: #57606a; }
+    </style>
+  </defs>
+
+  <!-- Background -->
+  <rect class="bg" width="800" height="320" rx="12"/>
+
+  <!-- ==================== SCENE 1 ==================== -->
+  <g class="scene scene1">
+    <!-- Robot reading papers -->
+    <g transform="translate(400,120)" class="robot-bounce">
+      <!-- Robot body -->
+      <rect class="robot-body" x="-30" y="-40" width="60" height="50" rx="10"/>
+      <!-- Robot head -->
+      <rect class="robot-body" x="-22" y="-68" width="44" height="32" rx="8"/>
+      <!-- Eyes -->
+      <circle class="robot-face" cx="-8" cy="-56" r="5"/>
+      <circle class="robot-face" cx="8" cy="-56" r="5"/>
+      <!-- Pupils (looking down at papers) -->
+      <circle class="robot-body" cx="-8" cy="-53" r="2.5"/>
+      <circle class="robot-body" cx="8" cy="-53" r="2.5"/>
+      <!-- Antenna -->
+      <line x1="0" y1="-68" x2="0" y2="-80" stroke-width="2" class="glass-rim"/>
+      <circle class="check" cx="0" cy="-83" r="4"/>
+      <!-- Arms holding paper -->
+      <rect class="robot-body" x="-48" y="-30" width="16" height="8" rx="4"/>
+      <rect class="robot-body" x="32" y="-30" width="16" height="8" rx="4"/>
+    </g>
+    <!-- Stack of papers -->
+    <g transform="translate(340,100)">
+      <rect class="paper" x="0" y="0" width="50" height="65" rx="3" transform="rotate(-5)"/>
+      <rect class="paper" x="8" y="-3" width="50" height="65" rx="3" transform="rotate(2)"/>
+      <rect class="paper" x="16" y="0" width="50" height="65" rx="3" transform="rotate(-1)"/>
+      <!-- Text lines on top paper -->
+      <line x1="22" y1="12" x2="58" y2="12" stroke="#8b949e" stroke-width="2"/>
+      <line x1="22" y1="22" x2="54" y2="22" stroke="#8b949e" stroke-width="2"/>
+      <line x1="22" y1="32" x2="56" y2="32" stroke="#8b949e" stroke-width="2"/>
+      <line x1="22" y1="42" x2="50" y2="42" stroke="#8b949e" stroke-width="2"/>
+    </g>
+    <!-- Caption -->
+    <text class="caption" x="400" y="280">AI assistants read documents for us.</text>
+  </g>
+
+  <!-- ==================== SCENE 2 ==================== -->
+  <g class="scene scene2">
+    <!-- Robot confused -->
+    <g transform="translate(340,120)" class="robot-bounce">
+      <rect class="robot-body" x="-30" y="-40" width="60" height="50" rx="10"/>
+      <rect class="robot-body" x="-22" y="-68" width="44" height="32" rx="8"/>
+      <!-- Confused eyes (X shapes) -->
+      <g class="robot-face">
+        <line x1="-12" y1="-60" x2="-4" y2="-52" stroke-width="2.5" class="glass-rim"/>
+        <line x1="-4" y1="-60" x2="-12" y2="-52" stroke-width="2.5" class="glass-rim"/>
+        <line x1="4" y1="-60" x2="12" y2="-52" stroke-width="2.5" class="glass-rim"/>
+        <line x1="12" y1="-60" x2="4" y2="-52" stroke-width="2.5" class="glass-rim"/>
+      </g>
+      <!-- Question mark -->
+      <text font-size="24" font-weight="bold" fill="#cf222e" x="30" y="-55">?</text>
+      <line x1="0" y1="-68" x2="0" y2="-80" stroke-width="2" class="glass-rim"/>
+      <circle class="xmark" cx="0" cy="-83" r="4"/>
+    </g>
+    <!-- Document with sneaky note -->
+    <g transform="translate(440,70)">
+      <rect class="paper" x="0" y="0" width="70" height="90" rx="4"/>
+      <line x1="10" y1="14" x2="60" y2="14" stroke="#8b949e" stroke-width="2"/>
+      <line x1="10" y1="24" x2="58" y2="24" stroke="#8b949e" stroke-width="2"/>
+      <!-- Sneaky note inside -->
+      <g class="note-wiggle" transform="translate(35,58)">
+        <rect class="note-bad" x="-22" y="-14" width="44" height="28" rx="4"/>
+        <text class="note-text" font-size="9" font-weight="bold" text-anchor="middle" y="-2">HIDDEN</text>
+        <text class="note-text" font-size="9" font-weight="bold" text-anchor="middle" y="10">TRICK</text>
+        <!-- Sneaky eyes on the note -->
+        <circle fill="#ffffff" cx="-8" cy="-8" r="3"/>
+        <circle fill="#ffffff" cx="8" cy="-8" r="3"/>
+        <circle fill="#0d1117" cx="-7" cy="-7" r="1.5"/>
+        <circle fill="#0d1117" cx="9" cy="-7" r="1.5"/>
+      </g>
+    </g>
+    <text class="caption" x="400" y="280">A hidden note can trick them.</text>
+  </g>
+
+  <!-- ==================== SCENE 3 ==================== -->
+  <g class="scene scene3">
+    <!-- Guard with magnifying glass -->
+    <g transform="translate(300,110)">
+      <!-- Guard body -->
+      <rect class="guard-body" x="-25" y="-30" width="50" height="45" rx="10"/>
+      <!-- Guard head -->
+      <rect class="guard-body" x="-18" y="-58" width="36" height="30" rx="8"/>
+      <!-- Guard hat -->
+      <rect class="guard-hat" x="-22" y="-68" width="44" height="14" rx="4"/>
+      <!-- Eyes -->
+      <circle fill="#ffffff" cx="-6" cy="-48" r="4"/>
+      <circle fill="#ffffff" cx="10" cy="-48" r="4"/>
+      <circle fill="#0d1117" cx="-5" cy="-47" r="2"/>
+      <circle fill="#0d1117" cx="11" cy="-47" r="2"/>
+      <!-- Magnifying glass -->
+      <g class="guard-pulse" transform="translate(40,-20)">
+        <circle class="glass-rim" cx="0" cy="0" r="14"/>
+        <circle class="glass-fill" cx="0" cy="0" r="12"/>
+        <line x1="10" y1="10" x2="22" y2="22" stroke-width="3" class="glass-rim"/>
+      </g>
+    </g>
+    <!-- The note being caught -->
+    <g transform="translate(480,80)">
+      <rect class="paper" x="0" y="0" width="65" height="85" rx="4"/>
+      <rect class="note-bad" x="10" y="30" width="45" height="25" rx="4"/>
+      <text class="note-text" font-size="8" font-weight="bold" text-anchor="middle" x="32" y="46">TRICK</text>
+    </g>
+    <!-- Big green checkmark -->
+    <g class="check-pop" transform="translate(560,70)">
+      <circle class="check" cx="0" cy="0" r="20" opacity="0.2"/>
+      <text class="check" font-size="32" font-weight="bold" text-anchor="middle" y="10">&#10003;</text>
+    </g>
+    <text class="caption" x="400" y="280">A guard can catch one big trick...</text>
+  </g>
+
+  <!-- ==================== SCENE 4 ==================== -->
+  <g class="scene scene4">
+    <!-- Guard arriving too late -->
+    <g transform="translate(200,110)">
+      <rect class="guard-body" x="-25" y="-30" width="50" height="45" rx="10"/>
+      <rect class="guard-body" x="-18" y="-58" width="36" height="30" rx="8"/>
+      <rect class="guard-hat" x="-22" y="-68" width="44" height="14" rx="4"/>
+      <circle fill="#ffffff" cx="-6" cy="-48" r="4"/>
+      <circle fill="#ffffff" cx="10" cy="-48" r="4"/>
+      <circle fill="#0d1117" cx="-5" cy="-47" r="2"/>
+      <circle fill="#0d1117" cx="11" cy="-47" r="2"/>
+      <!-- Worried mouth -->
+      <path d="M-6,-38 Q2,-34 10,-38" stroke="#ffffff" stroke-width="2" fill="none"/>
+    </g>
+    <!-- Three torn pieces across pages -->
+    <g transform="translate(350,60)">
+      <!-- Page 1 with piece 1 -->
+      <rect class="paper" x="0" y="0" width="55" height="70" rx="3"/>
+      <g class="piece1" transform="translate(27,40)">
+        <rect class="note-bad" x="-18" y="-10" width="36" height="20" rx="3" opacity="0.7"/>
+        <text class="note-text" font-size="7" text-anchor="middle" y="4">piece 1</text>
+      </g>
+    </g>
+    <g transform="translate(420,55)">
+      <!-- Page 2 with piece 2 -->
+      <rect class="paper" x="0" y="0" width="55" height="70" rx="3"/>
+      <g class="piece2" transform="translate(27,35)">
+        <rect class="note-bad" x="-18" y="-10" width="36" height="20" rx="3" opacity="0.7"/>
+        <text class="note-text" font-size="7" text-anchor="middle" y="4">piece 2</text>
+      </g>
+    </g>
+    <g transform="translate(490,60)">
+      <!-- Page 3 with piece 3 -->
+      <rect class="paper" x="0" y="0" width="55" height="70" rx="3"/>
+      <g class="piece3" transform="translate(27,40)">
+        <rect class="note-bad" x="-18" y="-10" width="36" height="20" rx="3" opacity="0.7"/>
+        <text class="note-text" font-size="7" text-anchor="middle" y="4">piece 3</text>
+      </g>
+    </g>
+    <!-- Robot already acted (at right, with exclamation) -->
+    <g transform="translate(610,100)" class="robot-bounce">
+      <rect class="robot-body" x="-20" y="-28" width="40" height="35" rx="8"/>
+      <rect class="robot-body" x="-15" y="-48" width="30" height="22" rx="6"/>
+      <circle class="robot-face" cx="-5" cy="-40" r="3"/>
+      <circle class="robot-face" cx="5" cy="-40" r="3"/>
+    </g>
+    <!-- Red X - too late -->
+    <g class="x-shake" transform="translate(640,60)">
+      <circle class="xmark" cx="0" cy="0" r="16" opacity="0.2"/>
+      <text class="xmark" font-size="26" font-weight="bold" text-anchor="middle" y="8">&#10007;</text>
+    </g>
+    <text class="caption" x="400" y="280">...but split into pieces, the trick slips past.</text>
+  </g>
+
+  <!-- ==================== SCENE 5 ==================== -->
+  <g class="scene scene5">
+    <!-- Guard checking some pages -->
+    <g transform="translate(240,110)">
+      <rect class="guard-body" x="-25" y="-30" width="50" height="45" rx="10"/>
+      <rect class="guard-body" x="-18" y="-58" width="36" height="30" rx="8"/>
+      <rect class="guard-hat" x="-22" y="-68" width="44" height="14" rx="4"/>
+      <circle fill="#ffffff" cx="-6" cy="-48" r="4"/>
+      <circle fill="#ffffff" cx="10" cy="-48" r="4"/>
+      <circle fill="#0d1117" cx="-5" cy="-47" r="2"/>
+      <circle fill="#0d1117" cx="11" cy="-47" r="2"/>
+      <!-- Smile -->
+      <path d="M-6,-38 Q2,-42 10,-38" stroke="#ffffff" stroke-width="2" fill="none"/>
+      <g class="guard-pulse" transform="translate(40,-20)">
+        <circle class="glass-rim" cx="0" cy="0" r="12"/>
+        <circle class="glass-fill" cx="0" cy="0" r="10"/>
+        <line x1="8" y1="8" x2="18" y2="18" stroke-width="2.5" class="glass-rim"/>
+      </g>
+    </g>
+    <!-- Row of pages, some checked some not -->
+    <g transform="translate(370,55)">
+      <!-- Page 1 - checked (highlighted) -->
+      <g class="sample-flash">
+        <rect class="paper" x="0" y="0" width="40" height="55" rx="3" stroke-width="2.5"/>
+        <text class="check" font-size="16" text-anchor="middle" x="20" y="72">&#10003;</text>
+      </g>
+      <!-- Page 2 - not checked (dimmed) -->
+      <g opacity="0.4">
+        <rect class="paper" x="55" y="0" width="40" height="55" rx="3"/>
+      </g>
+      <!-- Page 3 - checked -->
+      <g class="sample-flash" style="animation-delay: 0.4s">
+        <rect class="paper" x="110" y="0" width="40" height="55" rx="3" stroke-width="2.5"/>
+        <text class="check" font-size="16" text-anchor="middle" x="130" y="72">&#10003;</text>
+      </g>
+      <!-- Page 4 - not checked -->
+      <g opacity="0.4">
+        <rect class="paper" x="165" y="0" width="40" height="55" rx="3"/>
+      </g>
+      <!-- Page 5 - checked -->
+      <g class="sample-flash" style="animation-delay: 0.8s">
+        <rect class="paper" x="220" y="0" width="40" height="55" rx="3" stroke-width="2.5"/>
+        <text class="check" font-size="16" text-anchor="middle" x="240" y="72">&#10003;</text>
+      </g>
+    </g>
+    <text class="caption" x="400" y="280">Checking some conversations at random helps, with fewer false alarms.</text>
+  </g>
+</svg>

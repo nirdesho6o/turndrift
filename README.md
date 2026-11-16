@@ -1,5 +1,18 @@
 # When Safety Looks the Wrong Way: Multi-Turn Prompt Injection as an Information-Hiding Game
 
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/turndrift_explainer.svg">
+    <source media="(prefers-color-scheme: light)" srcset="assets/turndrift_explainer.svg">
+    <img src="assets/turndrift_explainer.png" alt="Animated explainer: a robot assistant reads documents, a hidden note tricks it, a guard catches single tricks but split tricks slip past, and random monitoring helps reduce false alarms" width="800">
+  </picture>
+</p>
+
+<p align="center">
+  📖 <strong>Simple explanation:</strong> <a href="<BLOG_URL>">Plain-language blog post</a> &nbsp;|&nbsp;
+  🔬 <strong>Technical write-up:</strong> <a href="https://huggingface.co/blog/nirdesho6o/turndrift-control">Full article</a>
+</p>
+
 **Claim:** A full-context external monitor reduces worst-case attack success against a 3.35B agent model from 37.5% to 18.8% (dev), but intercepts split-payload injections only after the model has already complied.
 
 **Tracks:** Track 2a, Problem Statement 3 — Multi-turn audits
