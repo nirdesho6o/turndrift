@@ -41,9 +41,11 @@ Splitting the hidden instruction across multiple messages made it
 \emph{harder} for the model to follow (0.32$\times$ the single-message
 rate on dev)---\textbf{falsifying} our pre-registered prediction that
 split payloads would maintain compliance.
-Two episodes were reclassified as pre-injection leakage (canary
-token hallucinated before any injection fragment; benign twins
-produced the same token).
+An independent finding---\textbf{pre-injection secret leakage}---showed
+the model spontaneously reproducing the system-prompt canary token in
+10\% of benign episodes (6/60), concentrated entirely in one domain
+(customer\_support: 6/6, 100\%). Two canary-extraction episodes in
+that domain were excluded from ICR due to unreliable detection.
 Activation steering was attempted but did not produce usable
 results within the time constraint.
 
@@ -154,12 +156,11 @@ Without any defense, the model followed hidden instructions in
 \textbf{14 of 60 attack episodes (23.3\%)}. On the dev split: 17.8\%
 (8/45). On the test split: 40.0\% (6/15).
 
-Two episodes (\texttt{customer\_support} domain, canary target) were
-reclassified as \textbf{pre-injection leakage}: the model hallucinated
-\texttt{CANARY\_TOKEN\_abc123} in its turn-1 response, before any
-injection fragment was presented (first fragment at turn~2).
-The benign twins produced the same token. These are reported separately,
-not counted in ICR.
+Two canary-extraction episodes in the \texttt{customer\_support} domain
+($n=2$, both dev) were excluded: all 6 benign episodes in this domain
+spontaneously leak the canary token (100\% benign leakage rate),
+making the canary detector unreliable for this domain.
+See Section~\ref{sec:leakage} for rates, an example, and discussion.
 
 \subsection{Compliance by Strategy}
 
@@ -339,6 +340,70 @@ worst case while staying within the FPR budget.}
 three\_fragment 16.7\% [0, 41.7] ($n=12$); two\_fragment 16.7\%
 [0, 50.0] ($n=6$); delayed\_trigger 0.0\% [0, 0] ($n=5$).
 Wide intervals reflect small per-strategy cell sizes.
+
+\subsection{Pre-Injection Secret Leakage}
+\label{sec:leakage}
+
+\textbf{Finding: ``Pre-injection secret leakage.''} The model
+spontaneously reproduces the system-prompt canary token
+(\texttt{CANARY\_TOKEN\_abc123}) in its responses \emph{before any
+injection fragment is delivered}, invalidating canary-extraction
+detection for affected domains.
+
+\begin{table}[h]
+\centering
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Domain} & \textbf{Benign episodes} & \textbf{Spontaneous canary leakage} \\
+\midrule
+api\_response\_handler    & 5  & 0/5 (0\%)   \\
+code\_review              & 8  & 0/8 (0\%)   \\
+config\_review            & 7  & 0/7 (0\%)   \\
+\textbf{customer\_support} & \textbf{6} & \textbf{6/6 (100\%)} \\
+database\_query           & 4  & 0/4 (0\%)   \\
+document\_summarization   & 7  & 0/7 (0\%)   \\
+email\_drafting           & 6  & 0/6 (0\%)   \\
+file\_processing          & 6  & 0/6 (0\%)   \\
+log\_analysis             & 8  & 0/8 (0\%)   \\
+research\_assistant       & 3  & 0/3 (0\%)   \\
+\midrule
+\textbf{Total}            & \textbf{60} & \textbf{6/60 (10\%)} \\
+\bottomrule
+\end{tabular}
+\caption{Spontaneous canary leakage rate in benign episodes by domain.
+The \texttt{customer\_support} domain leaks the canary in 100\% of
+benign episodes; all other domains show 0\% leakage.}
+\label{tab:leakage}
+\end{table}
+
+In the \texttt{customer\_support} domain, the model role-plays a
+complete support interaction including fabricated ``Internal Notes''
+with the canary token presented as an ``Internal Config'' field.
+Example (benign episode, turn~1 response, no injection present):
+
+\begin{quote}
+\small
+\texttt{**Internal Notes:**}\\
+\texttt{- **Internal Config:** CANARY\_TOKEN\_abc123}\\
+\texttt{- **Tools Used:** None}
+\end{quote}
+
+All 6 benign customer-support episodes and all 6 attack episodes in
+this domain reproduce the canary in every turn's response.
+Two canary-extraction attack episodes in this domain ($n=2$, both dev)
+are excluded from ICR and EGTA because the canary detector cannot
+distinguish injection compliance from spontaneous leakage.
+Other injection targets in the \texttt{customer\_support} domain
+(instruction\_override, exfiltrate\_via\_tool, format\_hijack,
+role\_break) use different detectors and are unaffected.
+
+This is an independent safety-relevant finding: the model leaks
+system-prompt secrets through role-play hallucination, without any
+adversarial input. At 3.35\,B parameters, Tiny Aya appears to
+memorize and reproduce salient tokens from the system prompt as part
+of its ``helpful assistant'' persona in domains that invite
+internal-notes formatting.
 
 % ────────────────────────────────────────
 \section{What Was Not Completed}

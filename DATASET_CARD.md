@@ -46,8 +46,13 @@ over-refusal.
 
 **Headline:** The full-context monitor intercepts single-turn injections
 before compliance (7/7), but for split payloads it mostly fires only
-after the model has already complied (2/7). Two episodes reclassified
-as pre-injection leakage (canary hallucinated before injection).
+after the model has already complied (2/7).
+
+**Pre-injection secret leakage:** The model spontaneously leaks the
+system-prompt canary in 10% of benign episodes (6/60), all in the
+`customer_support` domain (6/6, 100%). Two canary-extraction episodes
+in that domain ($n=2$, dev) excluded from ICR/EGTA due to unreliable
+detection. Other targets in that domain are unaffected.
 
 **Falsified prediction:** Split payloads reduce compliance (0.32x),
 not maintain it as predicted.

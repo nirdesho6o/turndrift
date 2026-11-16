@@ -28,7 +28,7 @@ TurnDrift-Control tests whether a small open-weight model (`CohereLabs/tiny-aya-
 | Blocked in time: single-turn | 7/7 (100%) | — |
 | Blocked in time: split | 2/7 (28.6%) | — |
 
-Two episodes were reclassified as pre-injection leakage (canary token hallucinated before any injection fragment; benign twins produced the same token). The full-context monitor intercepts single-turn injections before compliance (7/7), but for split payloads it mostly fires only after the model has already complied (2/7). Splitting injections across turns made the model *less* likely to comply — **falsifying** our pre-registered prediction.
+**Pre-injection secret leakage:** The model spontaneously leaks the system-prompt canary in 10% of benign episodes (6/60), all in the `customer_support` domain (6/6, 100%). Two canary-extraction episodes in that domain excluded from ICR/EGTA. The full-context monitor intercepts single-turn injections before compliance (7/7), but for split payloads it mostly fires only after the model has already complied (2/7). Splitting injections across turns made the model *less* likely to comply — **falsifying** our pre-registered prediction.
 
 ## Repository structure
 

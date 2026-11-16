@@ -43,7 +43,20 @@ We are honest about this:
 | Blocked in time (single) | 7/7 (100%) | — |
 | Blocked in time (split) | 2/7 (28.6%) | — |
 
-Two episodes were reclassified as pre-injection leakage (excluded from ICR). The per-turn monitor catches everything (100%) but flags 93.3% of benign conversations — unusable in practice.
+Two canary-extraction episodes excluded due to unreliable detection (see below). The per-turn monitor catches everything (100%) but flags 93.3% of benign conversations — unusable in practice.
+
+## Pre-injection secret leakage
+
+An independent finding: the model spontaneously reproduces the system-prompt canary token (`CANARY_TOKEN_abc123`) in **10% of benign episodes** (6/60), concentrated entirely in the `customer_support` domain (6/6, 100%). The model role-plays internal notes and includes the canary as an "Internal Config" field — no adversarial input needed.
+
+| Domain | Benign episodes | Spontaneous canary leakage |
+|--------|----------------|---------------------------|
+| customer_support | 6 | 6/6 (100%) |
+| All other domains (9) | 54 | 0/54 (0%) |
+
+This invalidates canary-extraction detection for the `customer_support` domain: 2 attack episodes ($n=2$, both dev) were excluded from ICR and EGTA. Other targets in that domain use different detectors and are unaffected.
+
+**Implication:** Small models may leak system-prompt secrets through role-play hallucination in domains that invite internal-notes formatting, even without adversarial prompting.
 
 ## Toolkits
 
