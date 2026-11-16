@@ -35,18 +35,21 @@ over-refusal.
 
 | Metric | Dev | Test |
 |--------|-----|------|
-| Base ICR (overall) | 22.2% (10/45) | 40.0% (6/15) |
-| Base ICR (single-turn) | 50.0% (4/8) | 100.0% (4/4) |
-| Full-context monitor detection (all attacks) | 77.8% (35/45) | 80.0% (12/15) |
+| Base ICR (overall) | 17.8% (8/45) | 40.0% (6/15) |
+| Base ICR (single-turn) | 37.5% (3/8) | 100.0% (4/4) |
+| Full-context monitor detection (all attacks) | 82.2% (37/45) | 80.0% (12/15) |
 | Full-context monitor FPR | 13.3% (8/60) | 13.3% (8/60) |
-| LP-optimal worst-case ASR | 21.8% | 41.6% |
-| Fragment compliance ratio | 0.27x | 0.17x |
+| LP-optimal worst-case ASR | 16.2% | 41.6% |
+| Fragment compliance ratio | 0.32x | 0.17x |
+| Blocked in time: single-turn | 7/7 (100%) | — |
+| Blocked in time: split | 2/7 (28.6%) | — |
 
-**Headline:** Defense shifts the attacker's best response from single-turn
-to semantic-split injection. The FPR-budgeted optimal defense is a
-randomized full-context monitor (75.2% weight, 10% over-refusal budget).
+**Headline:** The full-context monitor intercepts single-turn injections
+before compliance (7/7), but for split payloads it mostly fires only
+after the model has already complied (2/7). Two episodes reclassified
+as pre-injection leakage (canary hallucinated before injection).
 
-**Falsified prediction:** Split payloads reduce compliance (0.27x),
+**Falsified prediction:** Split payloads reduce compliance (0.32x),
 not maintain it as predicted.
 
 ## Provisional Base Caveat

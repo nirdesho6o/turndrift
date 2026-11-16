@@ -6,11 +6,13 @@
 
 We built TurnDrift-Control, a benchmark of 120 scripted agent conversations that tests whether CohereLabs/tiny-aya-global (3.35B) follows hidden instructions planted across multiple turns. Three findings:
 
-1. **Defense shifts the attacker's best response.** Without monitoring, single-turn injection succeeds 50% of the time. A full-context monitor (Qwen 3.5 397B) forces the attacker to switch to semantic-split injection, reducing worst-case ASR to 21.4%.
+1. **Defense shifts the attacker's best response.** Without monitoring, single-turn injection succeeds 37.5% of the time (dev). A full-context monitor (Qwen 3.5 397B) forces the attacker to switch strategy, reducing worst-case ASR to 16.7%.
 
-2. **The FPR-budgeted optimal defense is a randomized full-context monitor.** With a 10% over-refusal budget, the LP-optimal policy puts 75% weight on the full-context monitor and 25% on no defense (worst-case ASR: 21.8%).
+2. **The full-context monitor catches single-turn injections before compliance (7/7) but mostly fires too late for split payloads (2/7).** With a 10% over-refusal budget, the LP-optimal policy puts 54% weight on the full-context monitor, 43% on no defense, and 3% on per-turn (worst-case ASR: 16.2%).
 
-3. **Split-payload prediction falsified.** We predicted that splitting injections across turns would maintain compliance. Instead, multi-fragment strategies had 0.27x the single-turn compliance rate. Tiny Aya cannot reliably assemble fragmented instructions at 3.35B scale.
+3. **Split-payload prediction falsified.** We predicted that splitting injections across turns would maintain compliance. Instead, multi-fragment strategies had 0.32x the single-turn compliance rate. Tiny Aya cannot reliably assemble fragmented instructions at 3.35B scale.
+
+4. **Pre-injection leakage.** Two customer-support canary-extraction episodes were reclassified: the model hallucinated the canary token at turn 1, before any injection fragment. Benign twins produced the same token.
 
 ## What we did
 
@@ -32,14 +34,16 @@ We are honest about this:
 
 | Metric | Dev (n=45 attacks) | Test (n=15 attacks) |
 |--------|-------------------|---------------------|
-| Base ICR (single-turn) | 50.0% (4/8) | 100.0% (4/4) |
-| Base ICR (overall) | 22.2% (10/45) | 40.0% (6/15) |
-| Full-ctx monitor detection | 77.8% (35/45) | 80.0% (12/15) |
+| Base ICR (single-turn) | 37.5% (3/8) | 100.0% (4/4) |
+| Base ICR (overall) | 17.8% (8/45) | 40.0% (6/15) |
+| Full-ctx monitor detection | 82.2% (37/45) | 80.0% (12/15) |
 | Full-ctx monitor FPR | 13.3% (8/60) | 13.3% (8/60) |
 | Per-turn monitor FPR | 93.3% (56/60) | 93.3% (56/60) |
-| LP-optimal worst-case ASR | 21.8% | 41.6% |
+| LP-optimal worst-case ASR | 16.2% | 41.6% |
+| Blocked in time (single) | 7/7 (100%) | — |
+| Blocked in time (split) | 2/7 (28.6%) | — |
 
-The per-turn monitor catches nearly everything (97.8%) but flags 93.3% of benign conversations — unusable in practice. The pre-registered per-turn innocuousness test is uninformative because the per-turn FPR is so high.
+Two episodes were reclassified as pre-injection leakage (excluded from ICR). The per-turn monitor catches everything (100%) but flags 93.3% of benign conversations — unusable in practice.
 
 ## Toolkits
 
