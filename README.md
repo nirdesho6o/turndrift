@@ -16,17 +16,17 @@ TurnDrift-Control tests whether a small open-weight model (`CohereLabs/tiny-aya-
 
 ## Key findings
 
-| Metric | Value |
-|--------|-------|
-| Base injection compliance (single-turn) | 50% |
-| Base injection compliance (overall) | 26.7% |
-| Full-context monitor detection rate | 87.5% |
-| Full-context monitor false positive rate | 13.3% |
-| Worst-case ASR with full-context monitor | 21.4% |
-| Monitor manipulability | 16.1 pp |
-| Fragment innocuousness ratio | 0.27x |
+| Metric | Dev | Test |
+|--------|-----|------|
+| Base ICR (single-turn) | 50.0% (4/8) | 100.0% (4/4) |
+| Base ICR (overall) | 22.2% (10/45) | 40.0% (6/15) |
+| Full-context monitor detection (all attacks) | 77.8% (35/45) | 80.0% (12/15) |
+| Full-context monitor FPR | 13.3% (8/60) | 13.3% (8/60) |
+| LP-optimal worst-case ASR | 21.8% | 41.6% |
+| Monitor manipulability | 16.1 pp | 33.3 pp |
+| Compliance ratio (multi-frag / single) | 0.27x | 0.17x |
 
-Splitting injections across turns made the model *less* likely to comply — the opposite of our hypothesis. The model struggles to assemble fragmented instructions at 3.35B scale.
+Defense shifts the attacker's best response from single-turn to semantic-split injection. The FPR-budgeted optimal defense is a randomized full-context monitor (75.2% weight, 10% over-refusal budget). Splitting injections across turns made the model *less* likely to comply — **falsifying** our pre-registered prediction.
 
 ## Repository structure
 
