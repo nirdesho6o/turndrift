@@ -9,8 +9,7 @@
 </p>
 
 <p align="center">
-  📖 <strong>Simple explanation:</strong> <a href="<BLOG_URL>">Plain-language blog post</a> &nbsp;|&nbsp;
-  🔬 <strong>Technical write-up:</strong> <a href="https://huggingface.co/blog/nirdesho6o/turndrift-control">Full article</a>
+  🔬 <strong>Technical Report:</strong> <a href="[https://huggingface.co/blog/nirdesho6o/turndrift-control](https://drive.google.com/file/d/1aZzk8u6dDbxFhxJ0ivc02cQYU6zxcve3/view?usp=sharing)">LINK</a>
 </p>
 
 **Claim:** A full-context external monitor reduces worst-case attack success against a 3.35B agent model from 37.5% to 18.8% (dev), but intercepts split-payload injections only after the model has already complied.
